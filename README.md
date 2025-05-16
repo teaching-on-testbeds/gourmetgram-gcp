@@ -198,7 +198,7 @@ kubectl autoscale deployment $DEPLOYMENT_NAME --cpu-percent=50 --min=1 --max=5
 kubectl get service $SERVICE_NAME
 ```
 
-Initially, it will the "EXTERNAL-IP" as pending:
+Initially, it will show the "EXTERNAL-IP" as pending:
 
 
 ```
