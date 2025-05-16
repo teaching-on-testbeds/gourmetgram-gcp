@@ -27,13 +27,15 @@ You can use the button highlighted in orange to bring the shell into its browser
 Inside the Cloud Shell, set the `GCP_PROJECT_ID` environment variable, which we will use throughout this tutorial, to the name of *your* GCP project:
 
 ```
+# run in Cloud Shell
 export GCP_PROJECT_ID="your-GCP-project-name"
 ```
 
 Also run 
 
 ```
-gcloud config set project
+# run in Cloud Shell
+gcloud config get project
 ```
 
 and make sure that Cloud Shell is configured to use the correct project.
@@ -43,6 +45,7 @@ and make sure that Cloud Shell is configured to use the correct project.
 To enable all required APIs for our workflow on Google Cloud Shell, run the following which covers various services across Kubernetes, Cloud Run, Vertex AI, Cloud Storage, Compute Engine, and Workbench:
 
 ```
+# run in Cloud Shell
 gcloud services enable \
   compute.googleapis.com \
   container.googleapis.com \
@@ -62,6 +65,8 @@ We're going to explore a few different ways to host the GourmetGram service on G
 In your Cloud Shell:
 
 ```
+# run in Cloud Shell
+
 # 1. Clone the repo and move into it
 git clone https://github.com/teaching-on-testbeds/gourmetgram.git
 cd gourmetgram
@@ -107,6 +112,8 @@ GCP's managed Kubernetes service is Google Kubernetes Engine (GKE). In your Clou
 Note that the Kubernetes manifest we will apply references the container image we created in the previous step, which is hosted in Artifact Registry.
 
 ```
+# run in Cloud Shell
+
 # 1. Set environment variables
 export REGION="us-central1"
 export REPO_NAME="gourmetgram-repo"
@@ -123,6 +130,8 @@ gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION
 It will take a few minutes to launch the cluster. Once the cluster is launched, you can deploy the GourmetGram service, and set up autoscaling of pods on the cluster:
 
 ```
+# run in Cloud Shell
+
 # 3. Create Kubernetes Deployment & Service YAML
 cd
 cat > gourmetgram-deployment.yaml <<EOF
@@ -200,6 +209,7 @@ gourmetgram-service   LoadBalancer   34.118.225.132   <pending>     80:31515/TCP
 you can re-run 
 
 ```
+# run in Cloud Shell
 kubectl get service $SERVICE_NAME
 ```
 
@@ -208,6 +218,7 @@ until an external IP is assigned.
 Use
 
 ```
+# run in Cloud Shell
 kubectl get all
 ```
 
@@ -235,6 +246,8 @@ We will deploy GourmetGram using Google Cloud Run, which is a serverless offerin
 (These instructions assume you have already defined the environment variables in the previous steps!)
 
 ```
+# run in Cloud Shell
+
 # 1. Deploy to Cloud Run
 gcloud run deploy $SERVICE_NAME \
   --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME \
@@ -280,6 +293,8 @@ To serve GourmetGram, we only need the container image; but if we are going to t
 First, create a bucket:
 
 ```
+# run in Cloud Shell
+
 # 1. Create a bucket
 gcloud storage buckets create gs://food11-dataset-bucket \
     --location=us-central1 \
@@ -311,6 +326,8 @@ ff524@food11-setup-vm:~$
 Once on the VM instance, you can run the following:
 
 ```
+# run on food11-setup-vm
+
 sudo apt-get update
 sudo apt-get install -y python3 python3-pip unzip
 
@@ -325,6 +342,8 @@ rm Food-11.zip
 ```
 
 ```
+# run on food11-setup-vm
+
 python3 - <<EOF
 import os
 import shutil
@@ -350,11 +369,15 @@ EOF
 ```
 
 ```
+# run on food11-setup-vm
+
 # upload organized dataset to your bucket on GCS
 gsutil -m -q cp -r ~/Food-11 gs://food11-dataset-bucket/datasets/Food-11
 ```
 
 ``` 
+# run on food11-setup-vm
+
 # exit the VM
 exit
 ```
@@ -362,6 +385,8 @@ exit
 Now your terminal should indicate that you are back in the Cloud Shell! Delete the VM that you used as a staging area:
 
 ```
+# run on Cloud Shell
+
 4. Delete the VM instance
 gcloud compute instances delete food11-setup-vm --zone=us-central1-a --quiet
 ```
@@ -375,6 +400,8 @@ Now, we will bring up a PyTorch Jupyter notebook with a GPU attached to it, down
 In Cloud Shell, bring up a Jupyter notebook via Google's Vertex AI Workbench service:
 
 ```
+# run on Cloud Shell
+
 gcloud workbench instances create my-gpu-notebook \
     --location=us-central1-a \
     --machine-type=n1-standard-4 \
@@ -393,6 +420,7 @@ Click "Open JupyterLab" to open the notebook environment.
 Inside the notebook environment, open a terminal. Run
 
 ```
+# run in terminal on JuypyterLab instance
 nvidia-smi
 ```
 
@@ -401,6 +429,7 @@ and confirm that you can see the GPU attached.
 Next, inside the terminal in the notebook environment, copy the Food11 evaluation data from the Cloud Storage bucket to the filesystem in the notebook environment:
 
 ```
+# run in terminal on JuypyterLab instance
 mkdir /home/jupyter/Food-11
 gsutil -m -q cp -r gs://food11-dataset-bucket/datasets/Food-11/evaluation /home/jupyter/Food-11/
 ```
@@ -408,8 +437,16 @@ gsutil -m -q cp -r gs://food11-dataset-bucket/datasets/Food-11/evaluation /home/
 Now, we can run an evaluation job. First, let's get the model to evaluate and a notebook to run:
 
 ```
+# run in terminal on JuypyterLab instance
 git clone https://github.com/teaching-on-testbeds/eval-offline-chi
 cp -R eval-offline-chi/workspace/* .
+```
+
+Also run:
+
+```
+# run in terminal on JuypyterLab instance
+pip install grad-cam pytest
 ```
 
 Now, you can open "4_eval_offline.ipynb" and run the notebook.
