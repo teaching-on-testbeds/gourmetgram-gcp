@@ -2,29 +2,45 @@
 
 We've spent a lot of time training, serving, and evaluating a hypothetical machine learning service called GourmetGram on Chameleon Cloud. In this experiment, we see how some of those activities might translate to a commercial cloud: Google Cloud (although similar principles would apply to other commercial clouds).
 
-These instructions assume that you have already redeemed education credits on Google Cloud.
+We will focus specifically on *managed services* offered by the cloud provider. We already know how to run GourmetGram and many associated services (data platforms, ML platforms) directly inside a generic VM instance on Chameleon; we could launch a VM on Google Cloud and run GourmetGram exactly the same way. 
+
+However, this lab emphasizes cloud provider-managed services that can help us reduce some of the operational overhead associated with the self-managed VM approach. 
 
 ---
 
+### Redeem education credits
+
+Students should have received an email with a link to redeem a $50 education coupon for GCP.
+
+Go to the Google cloud console (https://cloud.google.com/) and sign in with your NYU account (netID@nyu.edu). The coupon is only valid for your nyu.edu email address.
+
+Click on the link in the email to redeem your coupon. You will be directed to a "GCP credit application", where you will fill in some information and agree to terms of use. 
+
+When you have successfully redeemed the coupon, you will be redirected to an overview page for the "Billing account for Education" account.  You should be able to see your education credits in the 'Credits' section of the billing account.
+
+
 ### Create a GCP project
 
-First, open the Google Cloud console in a web browser: [Google Cloud Console](https://console.cloud.google.com/)
+Our next step will be to create a GCP project associated with this billing account. If it is not open already, open the Google Cloud console in a web browser: [Google Cloud Console](https://console.cloud.google.com/)
 
-We might need to create a new project for this lab. Click on the project selector in the menu bar at the top of the screen, just to the right of the "Google Cloud" logo (it's highlighted green in the image below).
+Create a new project for this lab. Click on the project selector in the menu bar at the top of the screen, just to the right of the "Google Cloud" logo (it's highlighted green in the image below).
+
+![Google Cloud menu bar.](images/menu-bar.png)
 
 In the project selector dialog:
 
-1. Click **New Project**
-2. Set the **Project name** to `gourmetgram-gcp-lab`
-3. For **Organization**, select the organization associated with your education credits (e.g. `nyu.edu`)
-4. For **Location** (parent folder), select the appropriate folder under your organization — this may be a folder assigned to your course or your personal folder
-5. Click **Create**
+1. Click "New Project"
+2. Set the "Project name" to `gourmetgram-gcp-lab` (note: Google Cloud projects have a unique global *ID* but don't necessarily have a unique *name*. Your project *ID* will have some extra numbers at the end, to make it globally unique.)
+3. Make sure "Billing account" is set to "Billing account for Education". This is the name used for billing accounts created using educational coupons.
+4. For "Organization", select the organization associated with your education credits (e.g. `nyu.edu`)
+5. For "Location" (parent folder), select the appropriate folder under your organization (e.g. "NYU-GCP-Personal-Projects")
+6. Click "Create"
 
 Once the project is created, make sure it is selected as the active project using the project selector in the menu bar.
 
-> **Important:** If you previously had a Google Cloud account with a credit card attached to it, make sure you are working in this new project that bills your education credits, not your personal credit card, to avoid being charged for your work.
+> Important: If you previously had a Google Cloud account with a credit card attached to it, make sure you are working in this new project that bills your education credits, not your personal credit card, to avoid being charged for your work.
 
-Next, link your education billing account to this project. Go to [Billing](https://console.cloud.google.com/billing) and make sure your `gourmetgram-gcp-lab` project is associated with the billing account that has your education credits. You should be able to see your education credits in the 'Credits' section of the billing account.
+Go to [Billing](https://console.cloud.google.com/billing) and make sure your `gourmetgram-gcp-lab` project is associated with the billing account that has your education credits.  Select the "Billing account for Education" account. Then, in the sidebar on the left side, scroll down to "Billing management" and then click on "Account management". Confirm that the `gourmetgram-gcp-lab` project is listed there.
 
 ### Open Cloud Shell
 
@@ -40,26 +56,66 @@ You can use the button highlighted in orange to bring the shell into its browser
 
 ![Cloud Shell.](images/cloud-shell.png)
 
-Inside the Cloud Shell, first configure it to use your project and set the `GCP_PROJECT_ID` environment variable, which we will use throughout this tutorial:
+The terminal prompt should show that you are working in your `gourmetgram-gcp-lab` project, e.g.
+
+```
+ff524@cloudshell:~ (gourmetgram-gcp-lab-494600)$ 
+```
+
+and if you run 
+
+```
+echo $GOOGLE_CLOUD_PROJECT
+```
+
+inside this shell, you should see your project ID. Also, if you run
+
+
+```
+echo $USER
+```
+
+you will see your user ID. Take a screenshot showing both `echo` commands and their output.
+
+Now clone this lab repository in Cloud Shell (we will reuse files from it throughout the lab):
 
 ```
 # run in Cloud Shell
-gcloud config set project gourmetgram-gcp-lab
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
+git clone https://github.com/teaching-on-testbeds/gourmetgram-gcp.git
+cd gourmetgram-gcp
 ```
 
-Verify it's set correctly:
+---
+
+In case you get disconnected from Cloud Shell and re-connect, you may end up in a state where you are not working "in" your project, and then you will encounter authentication errors; if you ever see that your prompt does *not* include the project name, you will need to fix that! 
+
+It's always a safe bet to re-open Cloud shell with the following procedure:
+
+* Close any existing Cloud Shell
+* Go back to the [https://console.cloud.google.com/](https://console.cloud.google.com/) home page
+* Make sure you are using the correct project.
+* Click on the Cloud Shell icon.
+
+since this will trigger the authorization flow.
+
+---
+
+
+Inside the Cloud Shell, let us set the `GCP_PROJECT_ID` environment variable, which we will use throughout this tutorial:
 
 ```
 # run in Cloud Shell
-gcloud config get project
 ```
 
-This should print `gourmetgram-gcp-lab`.
+> Note: The images in this tutorial may show a different project name, `excellent-grove-286202`, because I took screenshots in a project with that randomly generated name.
 
 ### Enable APIs
 
-To enable all required APIs for our workflow on Google Cloud Shell, run the following which covers various services across Kubernetes, Cloud Run, Vertex AI, Cloud Storage, Compute Engine, Cloud Build, and Monitoring:
+By default, your Google Cloud project is configured with APIs disabled; this is a security measure to reduce attack surface.
+
+To enable all required APIs for our workflow on Google Cloud Shell, run the following which covers various services across Kubernetes, Cloud Run, Agent Platform, Cloud Storage, Compute Engine, Cloud Build, and Monitoring:
+
+In GCP, products are exposed as service APIs. Enabling an API activates that product in your project so both the console and `gcloud` can create and manage its resources.
 
 ```
 # run in Cloud Shell
@@ -75,10 +131,12 @@ gcloud services enable \
   monitoring.googleapis.com \
   logging.googleapis.com \
   eventarc.googleapis.com \
-  cloudscheduler.googleapis.com
+  cloudscheduler.googleapis.com \
+  workflows.googleapis.com \
+  batch.googleapis.com
 ```
 
-> **Note:** If you encounter authentication or permission errors at any point during this lab, see the [Troubleshooting](#troubleshooting) section at the bottom.
+## Build container images in GCP
 
 ### Create a container image
 
@@ -88,10 +146,14 @@ In your Cloud Shell:
 
 ```
 # run in Cloud Shell
-
 # 1. Clone the lab repo and move into the app directory
-git clone https://github.com/anshsarkar/gourmetgram-gcp-lab.git
-cd gourmetgram-gcp-lab/gourmetgram
+export REPO_NAME="gourmetgram-repo"
+export REGION="us-central1"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export IMAGE_NAME="gourmetgram"
+
+git clone https://github.com/teaching-on-testbeds/gourmetgram
+cd gourmetgram
 
 # 2. Set environment variables - used in the rest of these commands
 export REGION="us-central1"
@@ -109,6 +171,7 @@ gcloud auth configure-docker $REGION-docker.pkg.dev
 # 5. Build Docker image using your existing Dockerfile
 docker build -t $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME .
 
+
 # 6. Push Docker image to Artifact Registry
 docker push $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME
 
@@ -124,29 +187,37 @@ Now, if you open Artifact Registry in the Google Cloud Console web UI: [Artifact
 
 ![Container image.](images/container-image.png)
 
-### Cloud Build
+Take a screenshot from Artifact Registry showing this container.
+
+### Build with Cloud Build
 
 In the previous step, we manually ran `docker build` and `docker push` from Cloud Shell to create and upload our container image. This works, but it depends on having Docker available locally and running the commands by hand each time. Google Cloud Build lets you offload the build to Google's infrastructure — you submit your source code and a build config, and Cloud Build builds the image and pushes it to Artifact Registry for you.
 
-The repo includes a `cloudbuild.yaml` that defines the build steps. We'll submit it using `gcloud builds submit`.
-
-First, make sure you are in the `gourmetgram` directory:
+The `cloudbuild` branch of the `gourmetgram` repository includes a `cloudbuild.yaml` that defines the build steps. To see it, first, make sure you are in the `gourmetgram` directory, then switch to the `cloudbuild` branch:
 
 ```
 # run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/gourmetgram
+cd ~/gourmetgram
+export REGION="us-central1"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REPO_NAME="gourmetgram-repo"
+
+git checkout cloudbuild
 ```
 
-The repo already includes a `cloudbuild.yaml` in the `gourmetgram` directory. You can view it:
+The repo already includes a `cloudbuild.yaml`. You can view it:
 
 ```
 # run in Cloud Shell
 cat cloudbuild.yaml
 ```
 
-It defines a single build step that builds the Docker image and pushes it to Artifact Registry. The `substitutions` block provides default values for the region, repo name, and image name — Cloud Build runs remotely and cannot access your local shell variables, so these are passed as build-time substitutions instead.
+It defines a single build step that builds the Docker image and pushes it to Artifact Registry. 
 
-> **Note:** Cloud Build can build and push images, but it does not create the Artifact Registry repository itself. We already created it in the "Create a container image" step earlier — Cloud Build pushes to that existing repository.
+* The `substitutions` block provides default values for the region, repo name, and image name — Cloud Build runs remotely and cannot access your local shell variables, so these are passed as build-time substitutions instead. 
+* The `PROJECT_ID` variable will be substituted automatically.
+
+> Note: Cloud Build can build and push images, but it does not create the Artifact Registry repository itself. We already created it in the "Create a container image" step earlier — Cloud Build pushes to that existing repository.
 
 Now submit the build:
 
@@ -159,6 +230,7 @@ This will upload your source code to Cloud Build, build the Docker image remotel
 
 You can also view the build in the Google Cloud Console web UI: [Cloud Build](https://console.cloud.google.com/cloud-build/builds)
 
+
 Once the build completes, verify the new image is in Artifact Registry:
 
 ```
@@ -166,11 +238,103 @@ Once the build completes, verify the new image is in Artifact Registry:
 gcloud artifacts docker images list $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME
 ```
 
-You should see a new image with a recent timestamp — this one was built by Cloud Build, not by running Docker commands in Cloud Shell.
+You should see a new image with a recent timestamp — this is the one built by Cloud Build, not by running Docker commands in Cloud Shell.
+
+
+## Deploy on GCP compute
+
+### Deploy on Compute Engine 
+
+Let's start by deploying this container on a VM using Compute Engine, GCP's basic VM service. 
+
+```
+# run in Cloud Shell
+# 1. Set VM variables
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export VM_NAME="gourmetgram-vm"
+export VM_ZONE="us-central1-a"
+export REGION="us-central1"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+
+export VM_NAME="gourmetgram-vm"
+export VM_ZONE="us-central1-a"
+
+# 2. Create firewall rule for port 8000
+gcloud compute firewall-rules create allow-gourmetgram-vm \
+  --allow=tcp:8000 \
+  --target-tags=gourmetgram-vm
+
+# 3. Grant IAM Artifact Registry Reader role so the VM's default service account can authenticate and pull the private container image at startup
+PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+  --member="serviceAccount:${COMPUTE_SA}" \
+  --role="roles/artifactregistry.reader"
+
+# 4. Create Ubuntu VM and run the container using an inline startup script
+gcloud compute instances create $VM_NAME \
+  --zone=$VM_ZONE \
+  --machine-type=e2-medium \
+  --tags=gourmetgram-vm \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --scopes=https://www.googleapis.com/auth/cloud-platform \
+  --metadata=startup-script='#!/bin/bash
+set -e
+apt-get update
+apt-get install -y docker.io
+systemctl enable --now docker
+
+TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+  | sed -n "s/.*\"access_token\":\"\\([^\"]*\\)\".*/\\1/p")
+
+echo "$TOKEN" | docker login -u oauth2accesstoken --password-stdin https://'"$REGION"'-docker.pkg.dev
+docker run -d --restart=always -p 8000:8000 '"$REGION"'-docker.pkg.dev/'"$GCP_PROJECT_ID"'/'"$REPO_NAME"'/'"$IMAGE_NAME"'
+'
+
+export VM_NAME="gourmetgram-vm"
+export VM_ZONE="us-central1-a"
+
+```
+
+Although it is not strictly necessary to SSH to the instance, let's do so in order to watch as this setup script runs:
+
+1. Open the Compute Engine VM list in the UI: [Compute Engine](https://console.cloud.google.com/compute/instances). Take a screenshot of `gourmetgram-vm`.
+2. Click `gourmetgram-vm`, then click `SSH` (and authorize) to open a terminal on the VM.
+3. Run:
+
+```
+# run in SSH session on VM instance
+sudo journalctl -u google-startup-scripts.service -f
+```
+
+One you see that there are no errors and it is finished, e.g.
+
+```
+Finished Google Compute Engine Startup Scripts.
+google-startup-scripts.service: Consumed 28.373s CPU time.
+```
+
+you can close the SSH session. 
+
+Let's test it! Get the external IP and verify the service:
+
+```
+# run in Cloud Shell
+
+# 5. Get VM external IP
+gcloud compute instances describe $VM_NAME \
+  --zone=$VM_ZONE \
+  --format='value(networkInterfaces[0].accessConfigs[0].natIP)'
+```
+
+Open `http://<VM_EXTERNAL_IP>:8000` in your browser and upload an image to confirm that it's serving. Take a screenshot.
 
 ### Launch a Kubernetes cluster
 
-We had previously learned how to *manually* deploy a self-managed Kubernetes cluster, which takes quite a lot of time! Commercial cloud providers may offer Kubernetes as a managed service, which is much easier and faster to launch and operate.
+In a previous lesson, we learned about some of the advantages of a Kubernetes deployment vs. a single container running in a VM. And, we had previously learned how to *manually* deploy a self-managed Kubernetes cluster, which takes quite a lot of time! Commercial cloud providers may offer Kubernetes as a managed service, which is much easier and faster to launch and operate.
 
 GCP's managed Kubernetes service is Google Kubernetes Engine (GKE). In your Cloud Shell, let's launch a Kubernetes cluster using GKE.
 
@@ -178,8 +342,15 @@ Note that the Kubernetes manifest we will apply references the container image w
 
 ```
 # run in Cloud Shell
-
 # 1. Set environment variables
+export CLUSTER_NAME="gourmetgram-cluster"
+export REGION="us-central1"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+export SERVICE_NAME="gourmetgram-service"
+export DEPLOYMENT_NAME="gourmetgram-deployment"
+
 export REGION="us-central1"
 export REPO_NAME="gourmetgram-repo"
 export IMAGE_NAME="gourmetgram"
@@ -197,67 +368,14 @@ It will take a few minutes to launch the cluster. Once the cluster is launched, 
 ```
 # run in Cloud Shell
 
-# 3. Create Kubernetes Deployment & Service YAML
-cd
-cat > gourmetgram-deployment.yaml <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: gourmetgram-deployment
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: gourmetgram
-  template:
-    metadata:
-      labels:
-        app: gourmetgram
-    spec:
-      containers:
-      - name: gourmetgram
-        image: $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME
-        ports:
-        - containerPort: 8000
-        resources:
-          limits:
-            memory: "2Gi"
-            cpu: "1"
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /test
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /test
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 10
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: $SERVICE_NAME
-spec:
-  type: LoadBalancer
-  selector:
-    app: gourmetgram
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8000
-EOF
+# 3. Go to the Kubernetes assets in this repo
+cd ~/gourmetgram-gcp/cloudshell/kubernetes-cluster
 
-# 4. Apply Deployment & Service
-kubectl apply -f gourmetgram-deployment.yaml
+# 4. Apply Deployment & Service YAML from repo
+envsubst < gourmetgram-deployment.yaml | kubectl apply -f -
 
 # 5. Set up Horizontal Pod Autoscaler
-kubectl autoscale deployment $DEPLOYMENT_NAME --cpu-percent=50 --min=1 --max=5
+kubectl autoscale deployment $DEPLOYMENT_NAME --cpu=50% --min=1 --max=5
 
 # 6. Get External IP (wait and re-run this, until an IP is assigned)
 kubectl get service $SERVICE_NAME
@@ -277,7 +395,7 @@ you can re-run
 kubectl get service $SERVICE_NAME
 ```
 
-until an external IP is assigned.
+until an external IP is assigned. (It may take up to 10 minutes.)
 
 Use
 
@@ -294,26 +412,31 @@ Then, you can access the service at
 http://A.B.C.D
 ```
 
-where you substitute the external IP in place of `A.B.C.D`.
+where you substitute the external IP in place of `A.B.C.D`. Verify that the service is running, and returns a prediction when you upload an image. Take a screenshot.
 
-You can check on your cluster using the Google Cloud Console web UI: [Kubernetes Engine](https://console.cloud.google.com/kubernetes)
+You can check on your cluster using the Google Cloud Console web UI: [Kubernetes Engine](https://console.cloud.google.com/kubernetes). Take a screenshot.
 
-Click on the "Observability" tab to see some basic information about your cluster.
+Click on the "Observability" tab to see some basic information about your cluster. 
 
-### Serverless
+### Deploy a serverless service
 
 For a service that is always on, with variable and potentially high load, a Kubernetes cluster might be the best choice. However, if you have a lightweight service that is used intermittently, you might prefer to run it as a serverless instance. The commercial cloud provider manages the logistics of bringing up an active instance when it is needed, and letting it go when it is not.
 
 We will deploy GourmetGram using Google Cloud Run, which is a serverless offering from Google Cloud.
 
-(These instructions assume you have already defined the environment variables in the previous steps!)
+(Note: These instructions assume you have already defined the environment variables in the previous steps!)
 
-Now deploy:
+To deploy to Cloud Run:
 
 ```
 # run in Cloud Shell
-
 # 1. Deploy to Cloud Run
+export SERVICE_NAME="gourmetgram-service"
+export REGION="us-central1"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+
 gcloud run deploy $SERVICE_NAME \
   --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME \
   --platform managed \
@@ -329,1453 +452,711 @@ gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(stat
 
 Note that we are using the container image we created in an earlier step, which is hosted in Artifact Registry.
 
-Open the GourmetGram service using the URL printed in the terminal by the last step, and test it.
+Open the GourmetGram service using the URL printed in the terminal by the last step, and test that it returns a prediction when you upload an image. Take a screenshot.
 
-You can see your Cloud Run service in the Google Cloud Console web UI: [Cloud Run](https://console.cloud.google.com/run)
+You can see your Cloud Run service in the Google Cloud Console web UI: [Cloud Run](https://console.cloud.google.com/run). Take a screenshot.
 
 Click on the "Metrics" tab; this will show you the number of active instances running for your service over time. You can change the time scale from "Last 1 day" to a shorter time scale.
 
-As you generate traffic against your service, you will see the "Container instance count" scale up the number of active containers. However, when your service is idle for a while, it will scale down again.
+As you generate traffic against your service (you can keep hitting the `/test` endpoint to make it easier), you will see the "Container instance count" scale up the number of active containers. However, when your service is idle for a while, it will scale down again - even to zero. There is a tradeoff: a request that arrives when the service is scaled down to zero will have longer delay while a new instance is spun up.
 
-### Synthetic traffic and scaling
 
-So far we've deployed GourmetGram on both a managed Kubernetes cluster and as a serverless Cloud Run service. Now, let's simulate real-world traffic to compare how each deployment option scales under load. After that, we'll add Cloud Storage integration to collect data for retraining, and finally set up an event-driven inference pipeline.
 
-First, make sure your environment variables are still set (if your Cloud Shell session restarted, you will need to re-export these):
+## Work with data
 
-```
-# run in Cloud Shell
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
-export REGION="us-central1"
-export REPO_NAME="gourmetgram-repo"
-export IMAGE_NAME="gourmetgram"
-export SERVICE_NAME="gourmetgram-service"
-export CLUSTER_NAME="gourmetgram-cluster"
-export DEPLOYMENT_NAME="gourmetgram-deployment"
+Now that we have explored some compute options, let's set up a data pipeline for our GourmetGram service. 
 
-# Re-fetch GKE credentials (needed if Cloud Shell session restarted)
-gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION
-```
+### Create object storage buckets
 
-#### Always-on VM (baseline for cost comparison)
+We'll use three Cloud Storage buckets:
 
-Before we start generating traffic, let's deploy GourmetGram on a plain Compute Engine VM. We won't send traffic to it — its purpose is to run idle throughout the rest of the lab so we can compare its cost against the serverless and autoscaling alternatives later.
+- `raw`: captures incoming production images and intermediate data
+- `labeled`: stores class-organized data ready for training workflows
+- `training`: stores external data and versioned retraining datasets
+
+Bucket names in Cloud Storage must be unique across all of GCP, so we include your Cloud Shell username (`$USER`). Otherwise, we would all try to create the same buckets!
 
 ```
 # run in Cloud Shell
-gcloud compute firewall-rules create allow-gourmetgram-vm \
-  --allow=tcp:8000 \
-  --target-tags=gourmetgram-vm
+echo $USER
+export GCS_RAW_BUCKET="gourmetgram-raw-bucket-${USER}"
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
 
-gcloud compute instances create-with-container gourmetgram-vm \
-  --zone=us-central1-a \
-  --machine-type=e2-medium \
-  --container-image=$REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME \
-  --tags=gourmetgram-vm
-```
 
-This creates a VM running Container-Optimized OS with the GourmetGram container. Once it's ready, get its external IP:
+export GCS_RAW_BUCKET="gourmetgram-raw-bucket-${USER}"
+echo $GCS_RAW_BUCKET
 
-```
-# run in Cloud Shell
-gcloud compute instances describe gourmetgram-vm \
-  --zone=us-central1-a \
-  --format='value(networkInterfaces[0].accessConfigs[0].natIP)'
-```
+# 1. Create the raw bucket
+gcloud storage buckets create gs://$GCS_RAW_BUCKET \
+    --location=us-central1 \
+    --uniform-bucket-level-access
 
-Visit `http://<VM_EXTERNAL_IP>:8000` in your browser to verify it's serving, then leave it running. We won't send synthetic traffic to the VM — unlike Cloud Run or GKE with autoscaling, a VM costs the same whether it's handling requests or sitting idle. That's the point: we'll compare its steady cost against the pay-per-use alternatives at the end of this section.
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+echo $GCS_LABELED_BUCKET
 
-You can see your VM instance in the Google Cloud Console: [Compute Engine](https://console.cloud.google.com/compute/instances)
+# 2. Create the labeled bucket
+gcloud storage buckets create gs://$GCS_LABELED_BUCKET \
+    --location=us-central1 \
 
-#### Static GKE deployment (fixed replicas)
+    --uniform-bucket-level-access
 
-Earlier in the lab, we deployed GourmetGram on GKE with a Horizontal Pod Autoscaler (HPA) that scales pods between 1 and 5 based on CPU usage. Now let's create a second deployment in the same cluster with a **fixed** number of replicas and no autoscaler, so we can compare how each handles the same traffic.
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
+echo $GCS_TRAINING_BUCKET
 
-```
-# run in Cloud Shell
-cd
-cat > gourmetgram-static-deployment.yaml <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: gourmetgram-static-deployment
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: gourmetgram-static
-  template:
-    metadata:
-      labels:
-        app: gourmetgram-static
-    spec:
-      containers:
-      - name: gourmetgram
-        image: $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME
-        ports:
-        - containerPort: 8000
-        resources:
-          limits:
-            memory: "2Gi"
-            cpu: "1"
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /test
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /test
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 10
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: gourmetgram-static-service
-spec:
-  type: LoadBalancer
-  selector:
-    app: gourmetgram-static
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8000
-EOF
-
-kubectl apply -f gourmetgram-static-deployment.yaml
-```
-
-Wait for the pods to be ready and the external IP to be assigned:
-
-```
-# run in Cloud Shell
-kubectl get pods -l app=gourmetgram-static
-kubectl get service gourmetgram-static-service
-```
-
-You should see 2 pods running.
-
-#### Scaling comparison
-
-Now we have four different ways of running GourmetGram: an always-on VM, a static GKE deployment (fixed replicas), a GKE deployment with HPA (autoscaling), and Cloud Run (serverless). Let's send the same traffic to the three scalable options and compare how each handles the load.
-
-The `--mode load` flag hits the lightweight `/test` endpoint with GET requests — this generates CPU load to trigger scaling without involving any external services (no GCS, no image processing). Install the generator dependencies first:
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-pip install -r data_generator/requirements.txt
-```
-
-**Cloud Run** — watch instances scale up from zero:
-
-```
-# run in Cloud Shell
-export SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-python data_generator/generate_traffic.py --mode load
-```
-
-While it runs, check the Cloud Run metrics in the console — you should see the instance count scale up during bursts and back down during pauses: [Cloud Run](https://console.cloud.google.com/run)
-
-**GKE with HPA** — watch pods scale up:
-
-```
-# run in Cloud Shell
-export SERVICE_URL=http://$(kubectl get service gourmetgram-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-python data_generator/generate_traffic.py --mode load
-```
-
-While the generator runs, open a second Cloud Shell tab and watch the HPA in action:
-
-```
-# run in second Cloud Shell tab
-kubectl get hpa --watch
-```
-
-You should see the CPU utilization rise and the replica count increase beyond the initial value. After the bursts finish and the pause begins, the replicas will gradually scale back down.
-
-You can also observe this in the Google Cloud Console: [Kubernetes Engine — Workloads](https://console.cloud.google.com/kubernetes/workload). Click on `gourmetgram-deployment` and check the "Observability" tab to see CPU usage and pod count over time.
-
-**GKE static** — same traffic, but no autoscaler:
-
-```
-# run in Cloud Shell
-export SERVICE_URL=http://$(kubectl get service gourmetgram-static-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-python data_generator/generate_traffic.py --mode load
-```
-
-Watch the static pods:
-
-```
-# run in second Cloud Shell tab
-kubectl get pods -l app=gourmetgram-static --watch
-```
-
-The pod count stays fixed at 2 regardless of load. Under heavy traffic, the existing pods absorb all the requests — there is no scaling. Compare this with what you observed for the HPA deployment, where new pods were created automatically to handle the burst.
-
-We now have four scaling behaviors to compare:
-- **VM:** always on, no scaling at all — same cost idle or busy
-- **GKE static:** fixed pods, no scaling — pods may get overwhelmed under load
-- **GKE HPA:** pods scale up with load, scale back down after
-- **Cloud Run:** scales to zero between bursts, scales up during bursts — you only pay for what you use
-
-To compare costs across these deployment options, go to **Billing → Reports** in the Google Cloud Console: [Billing](https://console.cloud.google.com/billing). Select your billing account, click **Reports**, then filter by your project and the relevant services (Compute Engine, Kubernetes Engine, Cloud Run). You can adjust the time range to cover the period of this experiment. Note that billing data may take a few hours to appear — check back later to see the full cost breakdown.
-
-#### Data collection with Cloud Storage
-
-Now that we've measured scaling behavior, let's set up the data pipeline that will feed our retraining workflow. We'll configure Cloud Run to save a copy of every classified image to a GCS bucket — collecting "production" data as the service handles requests.
-
-Set your NYU Net ID and the staging bucket name — the Net ID ensures your bucket name is unique across GCP:
-
-```
-# run in Cloud Shell
-export NET_ID="your-net-id"
-export GCS_STAGING_BUCKET="${NET_ID}-staging-bucket"
-```
-
-Create the staging bucket:
-
-```
-# run in Cloud Shell
-gcloud storage buckets create gs://$GCS_STAGING_BUCKET \
+# 3. Create the training bucket
+gcloud storage buckets create gs://$GCS_TRAINING_BUCKET \
     --location=us-central1 \
     --uniform-bucket-level-access
 ```
 
-You can verify the bucket was created in the Google Cloud Console: [Cloud Storage](https://console.cloud.google.com/storage/browser)
+You can verify all three buckets were created in the Google Cloud Console: [Cloud Storage](https://console.cloud.google.com/storage/browser). Take a screenshow showing all three buckets.
 
-Run the setup script included in the lab repo. This will download the Food-11 dataset and organize the images into class directories (`class_00/` through `class_10/`):
+### Save production data in Cloud Storage
 
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-bash data_generator/setup_data.sh
-```
+Let's now try running a version of the `gourmetgram` service that uploads each image to the GCS bucket after making a prediction. (We do this upload asynchronously, so the user does not have to wait for it.)
 
-Next, redeploy the GourmetGram service on Cloud Run with the staging bucket configured. This tells the service to save a copy of every incoming image to Cloud Storage as it classifies it:
+Cloud Storage is a managed object-store data service. In this stage, Cloud Run remains the online inference compute service, and Cloud Storage becomes the durable data layer for labeled images.
+
+You should already have the `gourmetgram` repo from earlier steps. For this stage, switch to the `cloudstorage` branch, build, and deploy that version.
 
 ```
 # run in Cloud Shell
+# 1. Go to the existing app repo and switch branches
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+export SERVICE_NAME="gourmetgram-service"
+export REGION="us-central1"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+export IMAGE_TAG="cloudstorage"
+
+cd ~/gourmetgram
+git fetch origin
+git checkout cloudstorage
+
+# 2. Export required variables
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REGION="us-central1"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+
+export IMAGE_TAG="cloudstorage"
+export SERVICE_NAME="gourmetgram-service"
+
+# 3. Build and push image with Cloud Build
+gcloud builds submit --config=cloudbuild.yaml .
+# Note: now verify in Artifact Registry that this build 
+# produced an image tagged `cloudstorage`
+
+# 4. Grant Cloud Run runtime service account write access to labeled bucket
+PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud storage buckets add-iam-policy-binding gs://$GCS_LABELED_BUCKET \
+  --member="serviceAccount:${COMPUTE_SA}" \
+  --role="roles/storage.objectAdmin"
+
+# 5. Deploy to Cloud Run with labeled bucket configured
 gcloud run deploy $SERVICE_NAME \
-  --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME \
+  --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG \
+  --platform managed \
+  --region $REGION \
+
+  --allow-unauthenticated \
+  --port 8000 \
+  --memory=2Gi \
+  --timeout=600 \
+  --set-env-vars="GCS_LABELED_BUCKET=$GCS_LABELED_BUCKET"
+```
+
+Authentication note: the app writes to GCS using the Cloud Run runtime service account (IAM), not static keys. By default this is the Compute Engine default service account (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`). In the snippet above, we made sure the service account has permission to write to the bucket.
+
+
+Open [Artifact Registry](https://console.cloud.google.com/artifacts) and confirm `cloudstorage`-tagged version of the `gourmetgram` image is there. Take a screenshot with the tag visible.
+
+Get the service URL for the Cloud Run service you just deployed:
+
+```
+# run in Cloud Shell
+gcloud run services describe $SERVICE_NAME --region $REGION --format='value(status.url)'
+```
+
+Open that URL in your browser, upload a food image using the page UI, and submit it for inference. Take a screenshot.
+
+Then verify the output image was written to the `labeled` bucket, organized by class:
+
+1. Open [Cloud Storage](https://console.cloud.google.com/storage/browser)
+2. Click your labeled bucket: the one with a name that starts with `gourmetgram-labeled-bucket`
+3. Open a `class_XX/` folder and confirm a new image file appears. Take a screenshot.
+
+Upload a few more images belonging to different classes, to populate your "labeled" production bucket.
+
+
+### Trigger event-driven flows with Eventarc
+
+So far, we used a request-driven flow where inference happened first and storage happened second: a user submitted an image to the app, the app ran inference, then wrote the result to Cloud Storage. But many production pipelines need the opposite order: images arrive in storage first (from batch feeds, mobile uploads, or partner systems), and inference should run automatically afterward. 
+
+Eventarc supports this storage-first pattern. Eventarc is Google Cloud's event routing service; it connects source events (like new objects in Cloud Storage) to destination services (like Cloud Run).
+
+In this lab, we use Eventarc to implement the following pipeline:
+
+1. A file is uploaded to the `raw` bucket
+2. Eventarc detects the event when the object is finalized
+3. Eventarc invokes our Cloud Run service at an `/event` endpoint, sending an event payload with object metadata (e.g., path)
+4. The service downloads the raw image, runs inference, and writes the result to the `labeled` bucket under `class_XX/`
+
+This pattern is useful when images come from many sources (batch jobs, partner systems, mobile uploads) and you want asynchronous processing instead of direct request/response calls.
+
+Under the hood, this flow uses Pub/Sub as the event transport layer: when an object is finalized in Cloud Storage, that event is delivered through Pub/Sub and routed by Eventarc to your Cloud Run endpoint.
+
+Let us deploy the `eventarc` branch and set up the trigger:
+
+```
+# run in Cloud Shell
+
+export SERVICE_NAME="gourmetgram-service"
+export REGION="us-central1"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REPO_NAME="gourmetgram-repo"
+export IMAGE_NAME="gourmetgram"
+export IMAGE_TAG="cloudstorage"
+export GCS_RAW_BUCKET="gourmetgram-raw-bucket-${USER}"
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+
+# 1. Switch to the eventarc service version
+cd ~/gourmetgram
+git fetch origin
+git checkout eventarc
+
+# 2. Set variables
+
+# 3. Build and deploy 
+# replaces previous deployment, since service name is the same
+gcloud builds submit --config=cloudbuild.yaml .
+gcloud run deploy $SERVICE_NAME \
+  --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
   --port 8000 \
   --memory=2Gi \
   --timeout=600 \
-  --set-env-vars="GCS_STAGING_BUCKET=$GCS_STAGING_BUCKET"
-```
+  --set-env-vars="GCS_RAW_BUCKET=$GCS_RAW_BUCKET,GCS_LABELED_BUCKET=$GCS_LABELED_BUCKET"
 
-Now generate traffic using `--mode predict`, which sends base64-encoded food images to the `/api/predict` endpoint. The service classifies each image and saves a copy to the GCS staging bucket:
-
-```
-# run in Cloud Shell
-export SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-python data_generator/generate_traffic.py --mode predict
-```
-
-After the generator finishes, check the staging bucket for the captured images:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_STAGING_BUCKET/incoming/
-```
-
-You should see class directories (`class_00/` through `class_10/`) containing the images the service classified. These are organized by the model's predicted class — simulating how production data would accumulate over time as real users interact with the service. You can also browse the bucket contents in the Google Cloud Console: [Cloud Storage](https://console.cloud.google.com/storage/browser)
-
-#### Event-driven inference with Eventarc
-
-In the previous steps, the traffic generator called the Cloud Run service directly — a synchronous, request-response pattern. Now let's see an alternative: an **event-driven** architecture where uploading an image to Cloud Storage automatically triggers inference, with no direct API call.
-
-The flow: generator uploads images to a GCS bucket → Eventarc detects the new files → Cloud Run is triggered to classify each image → results are saved to the staging bucket.
-
-This pattern decouples data ingestion from processing — the generator just writes files, and inference happens independently. In production, this is useful when data arrives from many sources (mobile uploads, IoT devices, batch imports) and you want a single processing pipeline regardless of how the data gets there.
-
-First, create a separate bucket for Eventarc uploads:
-
-```
-# run in Cloud Shell
-export GCS_EVENTARC_BUCKET="${NET_ID}-eventarc-bucket"
-gcloud storage buckets create gs://$GCS_EVENTARC_BUCKET \
-    --location=us-central1 \
-    --uniform-bucket-level-access
-```
-
-Set up the required permissions. GCP uses **service accounts** to let services act on your behalf — they are identities for programs rather than people. Each GCP service (Cloud Storage, Eventarc, Compute Engine) has its own service agent, and you need to grant these agents the right roles so they can talk to each other. In this case:
-
-- The **GCS service agent** needs permission to publish Pub/Sub messages (so it can notify Eventarc when a file is uploaded)
-- The **default compute service account** needs permission to invoke Cloud Run (so Eventarc can trigger your service)
-- The **Eventarc service agent** needs its operational role to coordinate the event pipeline
-
-```
-# run in Cloud Shell
+# 4. Allow Eventarc to call this Cloud Run service
+# Eventarc invokes your /event endpoint as a service account identity.
+# This role authorizes that identity to send requests to Cloud Run.
 PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
-
-# Ensure the GCS service agent exists
-gcloud storage service-agent --project=$GCP_PROJECT_ID
-
-# Grant the GCS service agent permission to publish Pub/Sub messages (required for Eventarc)
-GCS_SERVICE_AGENT="service-${PROJECT_NUMBER}@gs-project-accounts.iam.gserviceaccount.com"
-gcloud projects add-iam-policy-binding $GCP_PROJECT_ID --member="serviceAccount:${GCS_SERVICE_AGENT}" --role="roles/pubsub.publisher"
-
-# Grant the default compute service account permission to invoke Cloud Run
 COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-gcloud run services add-iam-policy-binding $SERVICE_NAME --region=$REGION --member="serviceAccount:${COMPUTE_SA}" --role="roles/run.invoker"
+gcloud run services add-iam-policy-binding $SERVICE_NAME \
+  --region=$REGION \
+  --member="serviceAccount:${COMPUTE_SA}" \
+  --role="roles/run.invoker"
 
-# Create the Eventarc service agent (must exist before granting roles)
+# 5. Grant service-to-service IAM roles needed for storage-to-event delivery
+# Cloud Storage emits object events via Pub/Sub, so its service agent needs publisher rights.
+gcloud storage service-agent --project=$GCP_PROJECT_ID
+GCS_SERVICE_AGENT="service-${PROJECT_NUMBER}@gs-project-accounts.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+  --member="serviceAccount:${GCS_SERVICE_AGENT}" \
+  --role="roles/pubsub.publisher"
+# Eventarc also has its own service agent identity that needs its operational role.
 gcloud beta services identity create --service eventarc.googleapis.com --project $GCP_PROJECT_ID
+gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com" \
+  --role="roles/eventarc.serviceAgent"
 
-# Grant the Eventarc service agent its required role
-gcloud projects add-iam-policy-binding $GCP_PROJECT_ID --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-eventarc.iam.gserviceaccount.com" --role="roles/eventarc.serviceAgent"
-```
+# 6. Allow the Cloud Run runtime service account to read images from the raw bucket
+# The /event handler downloads objects from this bucket before running inference.
+gcloud storage buckets add-iam-policy-binding gs://$GCS_RAW_BUCKET \
+  --member="serviceAccount:${COMPUTE_SA}" \
+  --role="roles/storage.objectViewer"
 
-Now create the Eventarc trigger. This watches for new objects in the eventarc bucket and sends the event to our Cloud Run service's `/event` endpoint:
-
-```
-# run in Cloud Shell
+# 7. Create Eventarc trigger (raw bucket -> Cloud Run /event)
 gcloud eventarc triggers create gourmetgram-eventarc-trigger \
   --location=$REGION \
   --destination-run-service=$SERVICE_NAME \
   --destination-run-region=$REGION \
   --destination-run-path="/event" \
   --event-filters="type=google.cloud.storage.object.v1.finalized" \
-  --event-filters="bucket=${GCS_EVENTARC_BUCKET}" \
+  --event-filters="bucket=${GCS_RAW_BUCKET}" \
   --service-account="${COMPUTE_SA}"
 ```
 
-It may take a minute or two for the trigger to become fully active. If this fails saying that it will take sometime to propagate the access policies, then just wait for 2-3 minutes and try again. After it runs successfully, you can check its status:
+You can verify that the trigger is active in the Eventarc UI: [Eventarc Triggers](https://console.cloud.google.com/eventarc/triggers). Take a screenshot.
+
+
+
+Now, test the end-to-end flow. We will use Cloud Shell to upload a test image to the "raw" bucket:
 
 ```
 # run in Cloud Shell
-gcloud eventarc triggers describe gourmetgram-eventarc-trigger --location=$REGION --format='value(transport.pubsub.subscription)'
+gcloud storage cp ~/gourmetgram/instance/uploads/test_image.jpeg gs://$GCS_RAW_BUCKET/uploads/test_image.jpeg
 ```
 
-If this returns a subscription name (e.g. `projects/gourmetgram-gcp-lab/subscriptions/...`), the trigger is ready. If it returns empty, wait and try again.
+Then verify in the Cloud Storage UI that a new file appears in both the "raw" bucket, and in the "labeled" bucket under `class_XX/`: [Cloud Storage](https://console.cloud.google.com/storage/browser). Take a screenshot for both.
 
-Now let's test it. The upload mode uses the `google-cloud-storage` Python library, which needs application default credentials (see [Troubleshooting](#troubleshooting) if you haven't set these up yet). Run the generator in `upload` mode:
+(It is a photo of a [vegetable](https://github.com/teaching-on-testbeds/gourmetgram/blob/master/instance/uploads/test_image.jpeg) image, so it should appear in `class_10`.)
 
-```
-# run in Cloud Shell
-export GCS_UPLOAD_BUCKET=$GCS_EVENTARC_BUCKET
-python data_generator/generate_traffic.py --mode upload
-```
 
-The generator uploads images to `gs://<eventarc-bucket>/uploads/`. Each upload triggers Eventarc, which invokes the Cloud Run service. The service downloads the image, classifies it, and saves the result to the staging bucket under `incoming/class_XX/`.
+### Ingest external data
 
-While it runs, you can watch the Cloud Run logs to see the event-driven invocations (if running this in a new Cloud Shell tab, make sure `SERVICE_NAME` is set):
+We're eventually going to create re-training data out of the combination of labeled production images and our external Food11 dataset. In preparation for that, let's ingest the Food11 data.
 
-```
-# run in Cloud Shell
-export SERVICE_NAME="gourmetgram-service"
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME AND textPayload:Eventarc" \
-  --limit=20 --format="value(textPayload)"
-```
+We will run a small Google Cloud Batch job that executes a containerized ingest script and writes Food11 into `gs://$GCS_TRAINING_BUCKET/seed/Food-11/`.
 
-After the generator finishes, check the staging bucket — you should see new images that were classified via the Eventarc pipeline:
+Batch is GCP's managed batch compute service: you submit a job spec, GCP provisions short-lived compute for that job, and then cleans it up when the run finishes.
 
 ```
 # run in Cloud Shell
-gsutil ls gs://$GCS_STAGING_BUCKET/incoming/ | head -20
-```
-
-Notice that the result is the same as Option A (direct API) — classified images organized by predicted class in the staging bucket. The difference is architectural: the generator never called the service directly. It just uploaded files, and Eventarc handled the rest.
-
-You can browse the staging bucket to see the newly classified images: [Cloud Storage](https://console.cloud.google.com/storage/browser). You can also check the Cloud Run metrics to see that inference requests were triggered by Eventarc — look at the request count and instance count in the "Metrics" tab: [Cloud Run](https://console.cloud.google.com/run)
-
-> **Note:** The upload mode is slower than the direct API mode since each image goes through GCS first, then Eventarc, then Cloud Run. You can interrupt the generator with `Ctrl+C` once you've confirmed the flow works — the goal here is to see event-driven scaling in action, not to wait for all 1200 uploads to complete.
-
-> **Why might I see more images than expected?** If you ran both `--mode predict` (1200 requests) and `--mode upload` (1200 uploads), you might expect ~2400 images in the staging bucket — but you'll likely see more. This is because Eventarc uses **at-least-once delivery**: under load, some events may be delivered and processed more than once, resulting in duplicate images. This is a fundamental trade-off in event-driven systems — at-least-once delivery is reliable (no events are lost) but requires deduplication if exactness matters. For our use case, a few extra training images don't hurt.
-
-#### Cost comparison
-
-We've now seen four deployment models handle the same workload. Here's a summary of what we observed:
-
-| Deployment | Traffic | Saves to GCS | Scaling behavior |
-|---|---|---|---|
-| **VM** | None (idle) | No | Always on — same cost idle or busy |
-| **GKE static** | `--mode load` | No | Fixed pods — no scaling under load |
-| **GKE HPA** | `--mode load` | No | Pods scale up with load, back down after |
-| **Cloud Run** | `--mode predict` | Yes | Scales to zero between bursts, scales up during |
-| **Cloud Run (Eventarc)** | `--mode upload` | Yes (via trigger) | Same as Cloud Run — event-driven scaling |
-
-You can check the cost difference in the Google Cloud Console: [Billing](https://console.cloud.google.com/billing)
-
-> **Key takeaway:** The VM and static GKE cluster cost the same whether they're serving traffic or sitting idle. HPA improves pod efficiency but the cluster still runs. Cloud Run charges only for actual request processing time — for bursty or intermittent workloads, this can be significantly cheaper.
-
-## Batch data for training
-
-In the previous section, our Cloud Run service classified incoming images and saved them to the staging bucket under `incoming/class_XX/`. This is raw production data — it needs to be organized into a versioned training dataset before we can use it for model training.
-
-In a production ML system, new data arrives continuously. Rather than retraining on the entire dataset every time, we use **incremental learning**: each batch of new data becomes a new version, and the model fine-tunes on just the new data, carrying forward knowledge from previous training through its weights.
-
-Our batch pipeline will:
-1. Check the staging bucket for new images in `incoming/`
-2. If new data exists, create a versioned folder (`v1`, `v2`, ...) in the training bucket
-3. Copy the images, write a metadata file, and clean up the staging bucket
-4. If no new data exists, skip — no empty versions are created
-
-First, make sure your environment variables are set (if you're in a new Cloud Shell session or tab).
-
-Set your Net ID (replace `your-net-id` with your actual NYU Net ID):
-
-```
-# run in Cloud Shell
-export NET_ID="your-net-id"
-```
-
-Then set the remaining variables:
-
-```
-# run in Cloud Shell
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
+# 1. Set variables and grant write access to training bucket
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 export REGION="us-central1"
 export REPO_NAME="gourmetgram-repo"
-export GCS_STAGING_BUCKET="${NET_ID}-staging-bucket"
-export SERVICE_NAME="gourmetgram-service"
-export SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
+
 PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
 COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-```
+gcloud storage buckets add-iam-policy-binding gs://$GCS_TRAINING_BUCKET \
+  --member="serviceAccount:${COMPUTE_SA}" \
+  --role="roles/storage.objectAdmin"
 
-### Create the training bucket
+# 2. Move to this repo's ingest assets directory
+cd ~/gourmetgram-gcp/cloudshell/ingest-external-data
 
-```
-# run in Cloud Shell
-export GCS_TRAINING_BUCKET="${NET_ID}-training-bucket"
-gsutil mb -l $REGION gs://$GCS_TRAINING_BUCKET
-```
+# 3. Build and push image
+gcloud builds submit --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/food11-batch-ingest
 
-You can verify the bucket was created in the [Cloud Storage console](https://console.cloud.google.com/storage/browser).
+# 4. Render Batch config from template
+envsubst < food11-batch-job.json.tmpl > food11-batch-job.json
 
-### Build and deploy the batch job
-
-The repo includes a batch data script (`batch_job/batch_data.py`) and a Dockerfile (`batch_job/Dockerfile`). Let's build the container and deploy it as a Cloud Run Job.
-
-Build and push the container using Cloud Build:
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/batch_job
-gcloud builds submit --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/gourmetgram-repo/batch-data-job
-```
-
-Now create the Cloud Run Job:
-
-```
-# run in Cloud Shell
-gcloud run jobs create batch-data-job \
-  --image=$REGION-docker.pkg.dev/$GCP_PROJECT_ID/gourmetgram-repo/batch-data-job \
-  --region=$REGION \
-  --max-retries=0 \
-  --set-env-vars="GCS_STAGING_BUCKET=$GCS_STAGING_BUCKET,GCS_TRAINING_BUCKET=$GCS_TRAINING_BUCKET"
-```
-
-You can see the job in the [Cloud Run Jobs console](https://console.cloud.google.com/run/jobs).
-
-### Run the batch job manually (v1)
-
-The staging bucket already has classified images from the synthetic traffic section. Let's run the batch job to create our first versioned dataset:
-
-```
-# run in Cloud Shell
-gcloud run jobs execute batch-data-job --region=$REGION --wait
-```
-
-The `--wait` flag blocks until the job completes. While it runs, open the [Cloud Run Jobs console](https://console.cloud.google.com/run/jobs) and click on `batch-data-job`. You'll see the execution in progress — click on it to view the **Logs** tab, where you can watch the job scanning the staging bucket, copying images class by class, and writing the version metadata in real time.
-
-Verify the versioned dataset was created:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
-```
-
-You should see a `v1/` folder. Check its contents:
-
-```
-# run in Cloud Shell
-gsutil cat gs://$GCS_TRAINING_BUCKET/datasets/Food-11/v1/metadata.json
-```
-
-This metadata file records when the version was created, total image count, and per-class distribution. Browse the dataset in the [Cloud Storage console](https://console.cloud.google.com/storage/browser) to explore the `v1/training/class_XX/` structure.
-
-Also verify that the staging bucket's `incoming/` folder was cleaned up:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_STAGING_BUCKET/incoming/
-```
-
-This should be empty — the batch job moved all images to the training bucket and cleaned up.
-
-### Schedule the batch job
-
-In production, this batch job would run on a regular schedule (daily, weekly) to automatically version new data as it arrives. Let's set up Cloud Scheduler to demonstrate this pattern.
-
-> **Note:** We're using a 10-minute interval for the lab so you can see it trigger within the session. In production, this would typically be a daily or weekly schedule depending on data volume.
-
-```
-# run in Cloud Shell
-gcloud scheduler jobs create http batch-data-scheduler \
+# 5. Submit the Batch job
+export FOOD11_BATCH_JOB_ID="food11-bootstrap-$(date +%Y%m%d-%H%M%S)"
+gcloud batch jobs submit $FOOD11_BATCH_JOB_ID \
   --location=$REGION \
-  --schedule="*/10 * * * *" \
-  --uri="https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$GCP_PROJECT_ID/jobs/batch-data-job:run" \
+  --config=food11-batch-job.json
+
+# 6. Wait for completion and describe status
+gcloud batch jobs describe $FOOD11_BATCH_JOB_ID --location=$REGION
+```
+
+While it runs, you can watch progress in the Batch Jobs console: [Batch Jobs](https://console.cloud.google.com/batch/jobs). Once the job is running, you can use the "Actions" menu to view logs.
+
+After it completes, verify that class folders were created:
+
+```
+# run in Cloud Shell
+gcloud storage ls gs://$GCS_TRAINING_BUCKET/seed/Food-11/training/
+gcloud storage ls gs://$GCS_TRAINING_BUCKET/seed/Food-11/validation/
+gcloud storage ls gs://$GCS_TRAINING_BUCKET/seed/Food-11/evaluation/
+```
+
+### Prepare data for training
+
+Now we will create a scheduled data preparation batch process that builds a clean training dataset version (`v1`, `v2`, `v3`, ...) from:
+
+1. Seed Food11 data in `gs://$GCS_TRAINING_BUCKET/seed/Food-11/training/class_XX/` (first 100 images per class, to keep runtime short)
+2. Labeled production data in `gs://$GCS_LABELED_BUCKET/class_XX/`
+
+In production, we would add quality gates before using production data (for example: duplicate detection, filtering, minimum class counts, or human review for low-confidence predictions). But for now, we will keep it simple.
+
+```
+# run in Cloud Shell
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REGION="us-central1"
+export REPO_NAME="gourmetgram-repo"
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+
+# 1. Move to this repo's training-prep assets directory
+cd ~/gourmetgram-gcp/cloudshell/prepare-data-for-training
+
+# 2. Build and push image
+ gcloud builds submit --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/prepare-training-dataset
+
+# 3. Render Batch config from template
+export PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
+export COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+envsubst < prepare-training-job.json.tmpl > prepare-training-job.json
+
+# 4. Submit once now to create the next version
+export PREP_JOB_ID="prepare-training-dataset-$(date +%Y%m%d-%H%M%S)"
+gcloud batch jobs submit $PREP_JOB_ID --location=$REGION --config=prepare-training-job.json
+
+# 5. Verify output
+# wait a while first...
+gcloud storage ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
+LATEST_VERSION=$(gcloud storage ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/ | sed -E 's|.*/(v[0-9]+)/$|\1|' | sort -V | tail -1)
+gcloud storage ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/$LATEST_VERSION/training/
+gcloud storage cat gs://$GCS_TRAINING_BUCKET/datasets/Food-11/$LATEST_VERSION/metadata.json
+```
+
+
+To see the Batch job while it is running, open [Batch Jobs](https://console.cloud.google.com/batch/jobs), then open "Tasks" and "Logs". From Cloud Shell, you can also poll status with `gcloud batch jobs describe $PREP_JOB_ID --location=$REGION`.
+
+In this case, we ran the job directly. For recurring runs, we split responsibility across two orchestration services: Workflows defines the orchestration logic (create and submit a Batch job request), and Cloud Scheduler is the cron-style trigger that starts workflow executions on a schedule.
+
+``` 
+# run in Cloud Shell
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+export REGION="us-central1"
+export REPO_NAME="gourmetgram-repo"
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
+export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
+export PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
+export COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+export IMAGE_URI="$REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/prepare-training-dataset"
+echo "$IMAGE_URI"
+
+# 1. Use workflow definition from this repo
+cd ~/gourmetgram-gcp/cloudshell/prepare-data-for-training
+
+# 2. Deploy workflow
+gcloud workflows deploy schedule-prepare-training \
+  --location=$REGION \
+  --source=~/gourmetgram-gcp/cloudshell/prepare-data-for-training/schedule_prepare_training.yaml
+
+# 3. Create Scheduler job (every hour for lab demo)
+SCHEDULER_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+envsubst < scheduler-payload.json.tmpl > scheduler-payload.json
+gcloud scheduler jobs create http prepare-training-scheduler \
+  --location=$REGION \
+  --schedule="0 * * * *" \
   --http-method=POST \
-  --oauth-service-account-email=${COMPUTE_SA}
+  --uri="https://workflowexecutions.googleapis.com/v1/projects/$GCP_PROJECT_ID/locations/$REGION/workflows/schedule-prepare-training/executions" \
+  --oauth-service-account-email="$SCHEDULER_SA" \
+  --message-body="$(cat scheduler-payload.json)"
 ```
 
-You can see the scheduler in the [Cloud Scheduler console](https://console.cloud.google.com/cloudscheduler).
+To verify that everything is in place, open [Workflows](https://console.cloud.google.com/workflows), click `schedule-prepare-training`, and confirm it is deployed in `us-central1`. Then, open [Cloud Scheduler](https://console.cloud.google.com/cloudscheduler), click `prepare-training-scheduler`, and confirm the schedule is `0 * * * *`.
 
-### Generate new production data
-
-Before generating new traffic, wait for the scheduler to fire once (about 10 minutes). Check the [Cloud Scheduler console](https://console.cloud.google.com/cloudscheduler) — once you see the "Last run" column update, click on `batch-data-job` in the [Cloud Run Jobs console](https://console.cloud.google.com/run/jobs) and look at the latest execution logs. You should see:
-
-```
-No new images in incoming/. Skipping — no version created.
-```
-
-This confirms the batch job correctly skips when there's no new data — it won't create empty versions. Verify that the training bucket still only has v1:
+It's scheduled to run every hour, but if you need to run it immediately (without waiting for the schedule):
 
 ```
 # run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
+gcloud scheduler jobs run prepare-training-scheduler --location=$REGION
 ```
 
-Now let's simulate more production traffic. Do this as soon as possible after the previous run so that this can finish before the next scheduled run is executed. Run the data generator against the Cloud Run inference service — this will classify new images and save them to the staging bucket:
+After you run this command, trace it end-to-end in the Console to verify the orchestration path: in [Cloud Scheduler](https://console.cloud.google.com/cloudscheduler), open `prepare-training-scheduler` and confirm `Last run` updated; then open [Workflows](https://console.cloud.google.com/workflows), open `schedule-prepare-training`, and confirm a new execution was created at the same time; then open [Batch Jobs](https://console.cloud.google.com/batch/jobs) and confirm that workflow execution created a new `prepare-training-dataset-...` Batch job run. Finally, open [Cloud Storage Browser](https://console.cloud.google.com/storage/browser) and confirm that the new versioned dataset is created. Take a screenshot at each stage.
 
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-python data_generator/generate_traffic.py --mode predict
-```
 
-While this runs, take a moment to think about the production data flywheel:
-- Users send images → the model classifies them → classified images accumulate in the staging bucket
-- The scheduled batch job periodically versions this data into the training bucket
-- Training jobs can then fine-tune the model on new versions, improving it over time
+## Train a model
 
-### Verify scheduled v2 creation
+In this part we use two complementary training modes. First, we do interactive training in a GPU notebook while streaming seed images directly from Cloud Storage so we can iterate quickly. Second, we package training as a managed job that reads a versioned dataset and runs in Agent Platform with experiment tracking in the managed control plane.
 
-After the generator finishes, the staging bucket has new data in `incoming/`. Within 5 minutes, Cloud Scheduler will trigger the batch job automatically.
-
-Check if v2 has been created:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
-```
-
-If you only see `v1/`, wait a few minutes for the scheduler to fire. You can check the scheduler's last run time in the [Cloud Scheduler console](https://console.cloud.google.com/cloudscheduler) — look at the "Last run" column.
-
-Once v2 appears, inspect it:
-
-```
-# run in Cloud Shell
-gsutil cat gs://$GCS_TRAINING_BUCKET/datasets/Food-11/v2/metadata.json
-```
-
-You now have two versioned datasets. In the next section (Vertex AI Training), we'll use these versions to train a model — the training job will collate all untrained versions into a single dataset for that training run.
-
-### Pause the scheduler
-
-To avoid the job running repeatedly while you work through the remaining sections, pause the scheduler:
-
-```
-# run in Cloud Shell
-gcloud scheduler jobs pause batch-data-scheduler --location=$REGION
-```
-
-> **Tip:** You can resume it later with `gcloud scheduler jobs resume batch-data-scheduler --location=$REGION` if you want to generate more versions.
-
-## Vertex AI Training
-
-Now that we have versioned datasets, let's train the GourmetGram model using Vertex AI's managed training service. We'll use a **Vertex AI Pipeline** with two stages:
-
-1. **Data Preparation** — Collates all untrained dataset versions (v1, v2) into a single dataset with an 80/20 train/validation split
-2. **Model Training** — Trains or fine-tunes MobileNetV2 on the collated data using a GPU
-
-This mirrors a production ML workflow: data arrives in batches (versions), gets collated, and the model is trained on the combined data. If a previously trained model exists, it fine-tunes from those weights. Otherwise, it trains from scratch using a pretrained MobileNetV2 backbone.
-
-The pipeline produces versioned models (`model_v1`, `model_v2`, ...) stored in GCS alongside a `latest/` copy that always points to the most recent model.
+Note: this section is optional. If you prefer to skip this section, you can skip to "Understand Billing".
 
 ### Request GPU quota
 
-Vertex AI Training requires GPU quota. Request an increase **now** since approval can take some time.
+Agent Platform Training requires GPU quota. Request an increase now since approval can take some time.
 
 1. Go to [IAM & Admin → Quotas](https://console.cloud.google.com/iam-admin/quotas)
 2. In the filter bar, search for `Custom model training NVIDIA T4 GPUs per region`
-3. Select the quota for `us-central1`
-4. Click **Edit Quotas**, set the new limit to `1`, and provide a justification (e.g., "For ML model training in a university lab")
+3. Scroll in the table until you find the "Agent Platform API"  quota for `us-central1`
+4. Click on the three vertical dots at the right side to access the "Edit Quotas" option, set the new limit to `1`, and provide a justification (e.g., "For ML model training in a university lab")
 5. Submit the request
 
-> **Note:** Quota increases for T4 GPUs are usually approved within minutes for small requests, but can take up to 24-48 hours. Continue with the setup steps while you wait.
+> Note: Quota increases for T4 GPUs are usually approved within minutes for small requests, but can take up to 24-48 hours. Continue with the setup steps while you wait.
 
-### Set up environment variables
+
+### Interactive training in a GPU notebook
+
+Agent Platform (formerly Vertex AI) Workbench is a managed notebook compute service. It is useful for interactive experimentation: you can inspect data, try model changes, and run short training loops quickly without packaging a full job first.
 
 ```
 # run in Cloud Shell
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 export REGION="us-central1"
-export NET_ID="your-net-id"
-```
+export NOTEBOOK_NAME="gourmetgram-train-notebook"
 
-```
-# run in Cloud Shell
-export GCS_TRAINING_BUCKET="${NET_ID}-training-bucket"
-```
-
-### Grant storage access for the training pipeline
-
-The Vertex AI pipeline runs under the compute service account, which needs read/write access to the training bucket:
-
-```
-# run in Cloud Shell
-PROJECT_NUMBER=$(gcloud projects describe $GCP_PROJECT_ID --format='value(projectNumber)')
-COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-gsutil iam ch serviceAccount:${COMPUTE_SA}:roles/storage.objectAdmin gs://$GCS_TRAINING_BUCKET
-```
-
-### Install pipeline dependencies
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-pip install -r training/requirements.txt
-```
-
-### Run the training pipeline
-
-The training pipeline is defined in `training/pipeline.py`. It uses the Kubeflow Pipelines SDK to define two components and submits them to Vertex AI:
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/training
-python pipeline.py \
+gcloud workbench instances create $NOTEBOOK_NAME \
   --project=$GCP_PROJECT_ID \
-  --region=$REGION \
-  --training-bucket=$GCS_TRAINING_BUCKET \
-  --pipeline-root=gs://$GCS_TRAINING_BUCKET/pipeline-artifacts
+  --location=$REGION-a \
+  --machine-type=n1-standard-4 \
+  --accelerator-type=NVIDIA_TESLA_T4 \
+  --accelerator-core-count=1 \
+  --vm-image-project=cloud-notebooks-managed \
+  --vm-image-family=workbench-instances \
+  --metadata=proxy-mode=service_account
 ```
 
-This does three things:
-1. **Compiles** the pipeline to a YAML template
-2. **Uploads** the template to `gs://<training-bucket>/pipeline-templates/` so you can re-run it from the UI later
-3. **Submits** the first run to Vertex AI
-
-### Monitor the pipeline
-
-Open the [Vertex AI Pipelines console](https://console.cloud.google.com/vertex-ai/pipelines/runs) to see your pipeline. Click on the run to view the DAG — you'll see the two components and their dependencies:
-
-- **prepare-data** — Collating dataset versions and splitting into train/val
-- **train-model** — Training MobileNetV2 with GPU acceleration
-
-Click on each component to view its logs in real time. The training component will show epoch-by-epoch progress:
-
-```
-Phase 1: Training classification head (backbone frozen)
-Epoch 1/5 | Train Loss: 1.2345 Acc: 0.5678 | Val Loss: 0.9876 Acc: 0.6543 | Time: 12.3s
-...
-Phase 2: Fine-tuning entire model (backbone unfrozen)
-Epoch 6/20 | Train Loss: 0.4567 Acc: 0.8234 | Val Loss: 0.5432 Acc: 0.7890 | Time: 25.1s
-...
-```
-
-The pipeline typically takes 15-30 minutes depending on the dataset size and GPU availability.
-
-### Verify the trained model
-
-Once the pipeline completes, check the model output:
+If GPU capacity is unavailable, or your quota update has not been approved yet, you can create a CPU-only notebook instead:
 
 ```
 # run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/models/
+gcloud workbench instances create $NOTEBOOK_NAME \
+  --project=$GCP_PROJECT_ID \
+  --location=$REGION-a \
+  --machine-type=e2-standard-4 \
+  --vm-image-project=cloud-notebooks-managed \
+  --vm-image-family=workbench-instances \
+  --metadata=proxy-mode=service_account
 ```
 
-You should see:
 
-```
-gs://<training-bucket>/models/latest/
-gs://<training-bucket>/models/model_v1/
-```
+To see your new notebook, open [Agent Platform Workbench](https://console.cloud.google.com/agent-platform/workbench/instances), wait for the instance to become Running, then click Open JupyterLab.
 
-Check the training metadata:
+Click on the folder icon, and check that the file browser path is local.
 
-```
-# run in Cloud Shell
-gsutil cat gs://$GCS_TRAINING_BUCKET/training_metadata.json
-```
-
-This shows which data versions were used and the model version produced. You can also browse the model artifacts in the [Cloud Storage console](https://console.cloud.google.com/storage/browser).
-
-> **What happened:** The pipeline collated v1 and v2 into a single dataset, split it 80/20 for training and validation, then trained MobileNetV2 in two phases — first the classification head only (5 epochs), then fine-tuning the entire model with early stopping. The best model was saved as `model_v1` and also copied to `latest/`.
-
-### The full retraining cycle
-
-Let's walk through the complete production data flywheel: new data arrives → batch job versions it → training pipeline produces an updated model.
-
-**Step 1: Generate new production data**
-
-Run the data generator again to simulate new user traffic:
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-python data_generator/generate_traffic.py --mode predict
-```
-
-This sends images to the Cloud Run inference service, which classifies them and saves to the staging bucket under `incoming/`.
-
-**Step 2: Run the batch job to create v3**
-
-The scheduler is paused, so trigger the batch job manually:
-
-```
-# run in Cloud Shell
-gcloud run jobs execute batch-data-job --region=$REGION --wait
-```
-
-Verify v3 was created:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
-gsutil cat gs://$GCS_TRAINING_BUCKET/datasets/Food-11/v3/metadata.json
-```
-
-You should now see `v1/`, `v2/`, and `v3/`. The training metadata still shows `last_trained_version: 2` — v3 hasn't been trained on yet.
-
-**Step 3: Re-run the training pipeline from the UI**
-
-This time, let's trigger the pipeline from the Vertex AI console instead of the CLI:
-
-1. Go to [Vertex AI Pipelines](https://console.cloud.google.com/vertex-ai/pipelines/runs) in the console
-2. Click **Create Run**
-3. Under "Pipeline template", select **Upload from GCS** and enter: `gs://<your-training-bucket>/pipeline-templates/gourmetgram-training.yaml` (replace `<your-training-bucket>` with your actual bucket name, e.g. `as1234-training-bucket`)
-4. Set the **Output directory** to: `gs://<your-training-bucket>/pipeline-artifacts` (e.g. `gs://as1234-training-bucket/pipeline-artifacts`)
-5. Set the `project` parameter to your GCP project ID (e.g. `gourmetgram-gcp-lab`)
-6. Set the `training_bucket` parameter to your training bucket name (e.g. `as1234-training-bucket`)
-7. Leave the other parameters at their defaults (or adjust if you'd like to experiment)
-8. Click **Submit**
-
-This time, the pipeline will:
-- **prepare-data**: Only collate v3 (since v1 and v2 were already trained on), split into train/val
-- **train-model**: Load `model_v1` weights and **fine-tune** on v3 data, producing `model_v2`
-
-Watch the pipeline in the [Vertex AI Pipelines console](https://console.cloud.google.com/vertex-ai/pipelines/runs). In the train-model logs, you should see it loading the previous model:
-
-```
-Loading existing model: model_v1 for fine-tuning
-```
-
-**Step 4: Verify the new model**
-
-Once the pipeline completes:
-
-```
-# run in Cloud Shell
-gsutil ls gs://$GCS_TRAINING_BUCKET/models/
-gsutil cat gs://$GCS_TRAINING_BUCKET/training_metadata.json
-```
-
-You should now see `model_v1/` and `model_v2/`, with the metadata showing `last_trained_version: 3` and `last_model_version: 2`. The `latest/` folder always points to the most recent model.
-
-> **Key takeaway:** This is the production ML flywheel in action — new data arrives, gets versioned, and the model incrementally improves through fine-tuning. Each cycle produces a traceable model version linked to specific data versions. Notice how we triggered this run from the UI instead of the CLI — the pipeline template is stored in GCS and reusable, so anyone on the team can trigger a new training run with different parameters.
-
-## Stage 6: Vertex AI Experiments, TensorBoard & Model Registry
-
-So far our training pipeline produces versioned models, but we have no way to compare training runs, visualize learning curves, or browse registered models in one place. In this stage we add **experiment tracking** — the pipeline will log hyperparameters and per-epoch metrics to **Vertex AI Experiments**, stream training curves to **Vertex AI TensorBoard**, and register each trained model in the **Vertex AI Model Registry**.
-
-The pipeline already has the tracking code built in — it just needs to be activated by passing an experiment name and TensorBoard instance. Without those parameters, the pipeline behaves exactly as before.
-
-First, make sure your environment variables are still set (if your Cloud Shell session restarted, you will need to re-export these):
-
-```
-# run in Cloud Shell
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
-export REGION="us-central1"
-export REPO_NAME="gourmetgram-repo"
-export IMAGE_NAME="gourmetgram"
-export SERVICE_NAME="gourmetgram-service"
-
-# IMPORTANT: Change this to your Net ID
-export NET_ID="your-net-id"
-
-export GCS_TRAINING_BUCKET="${NET_ID}-training-bucket"
-export GCS_STAGING_BUCKET="${NET_ID}-staging-bucket"
-```
-
-### Update the serving container for Vertex AI
-
-In the next stage we'll deploy models to **Vertex AI Endpoints**. When Vertex AI deploys a model, it mounts the model artifacts from GCS and sets the `AIP_STORAGE_URI` environment variable. Our app needs to load the model from this path instead of the bundled file.
-
-The repo includes a `gourmetgram-vertex/` directory with this change already made. The only difference from the original `gourmetgram/` app is in the model loading section of `app.py`:
+Inside a notebook, install dependencies first:
 
 ```python
-# Vertex AI Endpoints mount model artifacts and set AIP_STORAGE_URI
-# Fall back to bundled model for Cloud Run / GKE deployments
-aip_storage = os.environ.get("AIP_STORAGE_URI", "")
-if aip_storage:
-    model_path = os.path.join(aip_storage, "food11.pth")
-    logging.info(f"Loading model from Vertex AI artifact: {model_path}")
-else:
-    model_path = "food11.pth"
-    logging.info("Loading bundled model: food11.pth")
+!pip install torch torchvision google-cloud-storage pillow
 ```
 
-When deployed on a Vertex AI Endpoint, it loads the trained model from the artifact URI. When deployed on Cloud Run or GKE (where `AIP_STORAGE_URI` is not set), it falls back to the bundled model — so the same image works everywhere.
+Then run a cell that defines a GCS-streaming PyTorch `Dataset` and `DataLoader` objects. This streams images on demand from Cloud Storage - in the interest of saving time, only 100 samples per class. Replace `<your-user>` in the following line with your GCP username:
 
-> **Why rebuild now?** Vertex AI copies the container image internally when a model is registered in Model Registry — it never checks Artifact Registry again after that. By rebuilding the image **before** the pipeline registers models, each Model Registry entry will have the correct Vertex AI-compatible container baked in.
+```python
+BUCKET = "gourmetgram-training-bucket-<your-user>"
+PREFIX = "seed/Food-11/training/"
+MAX_PER_CLASS = 100
+BATCH_SIZE = 32
 
-Build and push the updated image using Cloud Build. We use the **same image name** (`gourmetgram`) — existing Cloud Run and GKE deployments are not affected since they continue running the version they were deployed with:
+import io
+import os
+from collections import defaultdict
 
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/gourmetgram-vertex
+import torch
+from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as transforms
+from PIL import Image
+from google.cloud import storage
 
-gcloud builds submit --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME .
-```
+train_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.CenterCrop(224),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomRotation(15),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-### Create a TensorBoard instance
+val_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-A TensorBoard instance is a regionalized resource that stores your experiment data. Create one:
+class GCSImageDataset(Dataset):
+    def __init__(self, bucket, samples, class_to_id, transform):
+        self.bucket_name = bucket
+        self.samples = samples
+        self.class_to_id = class_to_id
+        self.transform = transform
+        self.client = storage.Client()
+        self.bucket = self.client.bucket(bucket)
 
-```
-# run in Cloud Shell
-gcloud ai tensorboards create --display-name=gourmetgram-tensorboard --region=$REGION
-```
+    def __len__(self):
+        return len(self.samples)
 
-This takes a minute or two. Once it completes, note the resource name printed (it looks like `projects/123/locations/us-central1/tensorboards/456`).
+    def __getitem__(self, idx):
+        blob_name, class_name = self.samples[idx]
+        blob = self.bucket.blob(blob_name)
+        img = Image.open(io.BytesIO(blob.download_as_bytes())).convert("RGB")
+        x = self.transform(img)
+        y = self.class_to_id[class_name]
+        return x, y
 
-Retrieve the full TensorBoard resource name and save it to an environment variable:
+client = storage.Client()
+by_class = defaultdict(list)
+for blob in client.list_blobs(BUCKET, prefix=PREFIX):
+    if blob.name.endswith("/"):
+        continue
+    parts = blob.name.split("/")
+    class_name = next((p for p in parts if p.startswith("class_")), None)
+    if class_name:
+        by_class[class_name].append(blob.name)
 
-```
-# run in Cloud Shell
-TENSORBOARD_ID=$(gcloud ai tensorboards list --region=$REGION --format="value(name)" --limit=1)
-echo $TENSORBOARD_ID
-```
+class_names = sorted(by_class.keys())
+class_to_id = {c: i for i, c in enumerate(class_names)}
 
-You can view your TensorBoard instance in the console under the **TensorBoard Instances** tab: [Vertex AI Experiments](https://console.cloud.google.com/vertex-ai/experiments)
+train_samples, val_samples = [], []
+for c in class_names:
+    files = sorted(by_class[c])[:MAX_PER_CLASS]
+    split = int(0.8 * len(files))
+    train_samples.extend([(f, c) for f in files[:split]])
+    val_samples.extend([(f, c) for f in files[split:]])
 
-### Generate new data for a fresh training run
+train_ds = GCSImageDataset(BUCKET, train_samples, class_to_id, train_transform)
+val_ds = GCSImageDataset(BUCKET, val_samples, class_to_id, val_transform)
+train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
+val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
-To see experiment tracking in action, let's create a new data version and train on it. If you already have untrained data versions from the previous stage, you can skip ahead to "Run the pipeline with experiment tracking".
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-
-# Set the Cloud Run service URL and generate new production traffic
-export SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-python data_generator/generate_traffic.py --mode predict
-
-# Run the batch job to create a new data version
-gcloud run jobs execute batch-data-job --region=$REGION --wait
-
-# Verify the new data version was created
-gsutil ls gs://$GCS_TRAINING_BUCKET/datasets/Food-11/
-```
-
-### Run the pipeline with experiment tracking
-
-Now re-run the pipeline with the `--experiment-name` and `--tensorboard-id` flags to enable tracking:
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/training
-
-python pipeline.py \
-  --project=$GCP_PROJECT_ID \
-  --region=$REGION \
-  --training-bucket=$GCS_TRAINING_BUCKET \
-  --pipeline-root=gs://$GCS_TRAINING_BUCKET/pipeline-artifacts \
-  --experiment-name=gourmetgram-experiment \
-  --tensorboard-id=$TENSORBOARD_ID
-```
-
-The pipeline will compile, upload the updated template, and submit the run. With experiment tracking enabled, the training component will:
-- Log all hyperparameters (epochs, learning rate, batch size, data versions)
-- Log training/validation loss and accuracy at every epoch
-- Log summary metrics (best validation loss, model version)
-- Register the trained model in Vertex AI Model Registry
-
-Monitor the pipeline in the console: [Vertex AI Pipelines](https://console.cloud.google.com/vertex-ai/pipelines/runs)
-
-### Explore Vertex AI Experiments
-
-Once the pipeline completes, go to the Experiments tab in the console:
-
-[Vertex AI Experiments](https://console.cloud.google.com/vertex-ai/experiments)
-
-1. Click on the **gourmetgram-experiment** experiment
-2. You'll see a table of runs (e.g. `train-v1`, `train-v2`, etc.) — each row is one training run
-3. Click on a run to see:
-   - **Parameters**: hyperparameters used (learning rate, epochs, batch size, data versions)
-   - **Metrics**: summary metrics (best validation loss, model version)
-   - **Time series**: per-epoch training curves
-
-If you have multiple runs, you can **compare them side by side** by selecting multiple rows and clicking "Compare". This lets you see how different hyperparameters or data versions affected training performance.
-
-### View TensorBoard
-
-Open TensorBoard to visualize training curves. Go to the **TensorBoard Instances** tab in Vertex AI Experiments:
-
-[Vertex AI Experiments](https://console.cloud.google.com/vertex-ai/experiments)
-
-1. Click on the **TensorBoard Instances** tab, then click **gourmetgram-tensorboard**
-2. Click **Open TensorBoard**
-3. In the TensorBoard UI, you'll see time series charts for:
-   - `train_loss` and `val_loss` — the loss curves for each training run
-   - `train_acc` and `val_acc` — the accuracy curves for each training run
-
-You can overlay multiple runs to compare how the model improved across training cycles.
-
-### View Model Registry
-
-The pipeline automatically registers each trained model in Vertex AI Model Registry. View your registered models:
-
-[Vertex AI Model Registry](https://console.cloud.google.com/vertex-ai/models)
-
-You should see a model named `gourmetgram-model-v<N>` for each training run that had experiment tracking enabled. Each entry includes:
-- The GCS artifact URI pointing to the trained weights
-- The serving container image (for future deployment)
-
-### Train a second model with different hyperparameters
-
-To demonstrate experiment comparison and to prepare two model versions for deployment in the next stage, let's run the pipeline again with a different learning rate. The `--retrain` flag tells the pipeline to reuse the same collated data and start from the same base model as the previous run — the only difference is the learning rate, making it a fair comparison.
-
-> **Production vs. Retrain models:** Regular pipeline runs save models to `models/model_vN/` in GCS and update the production model lineage (`training_metadata.json`). Retrain runs (`--retrain`) are for **experimentation only** — the model is saved to a temporary `retrain-artifacts/` path and registered in Model Registry with a `retrain` prefix (e.g., `gourmetgram-retrain-model-v4`). This keeps a clear separation: the `models/` directory contains your production model lineage, while retrain models exist only in Model Registry for canary deployments and experiment comparison.
-
-```
-# run in Cloud Shell
-cd ~/gourmetgram-gcp-lab/training
-
-python pipeline.py \
-  --project=$GCP_PROJECT_ID \
-  --region=$REGION \
-  --training-bucket=$GCS_TRAINING_BUCKET \
-  --pipeline-root=gs://$GCS_TRAINING_BUCKET/pipeline-artifacts \
-  --experiment-name=gourmetgram-experiment \
-  --tensorboard-id=$TENSORBOARD_ID \
-  --retrain \
-  --lr=5e-4
+print(f"classes={len(class_names)}, train_samples={len(train_ds)}, val_samples={len(val_ds)}")
 ```
 
-Once this completes, go back to [Vertex AI Experiments](https://console.cloud.google.com/vertex-ai/experiments) and click on **gourmetgram-experiment**. You should now see two runs side by side — `train-v<N>` (the production run) and `v<N>-retrain-<timestamp>` (the experiment). Both have the same version number because the retrain is an alternative to the same model version, not a new one. Select both and click **Compare** to see how the different learning rates affected training performance.
+Then train MobileNetV2 in PyTorch:
 
-Check [Model Registry](https://console.cloud.google.com/vertex-ai/models) — you should see two models:
-- `gourmetgram-model-v<N>` — the production model (saved in `models/` in GCS, updates production lineage)
-- `gourmetgram-v<N>-retrain-<timestamp>` — the experimental model (exists only in Model Registry for canary deployment, does not touch production `models/` directory or metadata)
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import models
 
-We'll deploy both in the next stage with traffic splitting to compare their real-world performance.
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = models.mobilenet_v2(weights="MobileNet_V2_Weights.DEFAULT")
+num_ftrs = model.last_channel
+model.classifier = nn.Sequential(nn.Dropout(0.5), nn.Linear(num_ftrs, len(class_names)))
+model = model.to(device)
 
-> **Key takeaway:** Experiment tracking turns your training pipeline from a black box into a fully observable system. Every run is recorded with its hyperparameters, metrics, and model artifacts — making it easy to compare runs, reproduce results, and audit which data/config produced which model. The same pipeline works with or without tracking, controlled by a single parameter.
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-## Stage 7: Vertex AI Endpoints
+def run_epoch(loader, train=True):
+    model.train() if train else model.eval()
+    total, correct, running_loss = 0, 0, 0.0
+    with torch.set_grad_enabled(train):
+        for x, y in loader:
+            x, y = x.to(device), y.to(device)
+            if train:
+                optimizer.zero_grad()
+            out = model(x)
+            loss = criterion(out, y)
+            if train:
+                loss.backward()
+                optimizer.step()
+            running_loss += loss.item()
+            pred = out.argmax(1)
+            total += y.size(0)
+            correct += (pred == y).sum().item()
+    return running_loss / max(1, len(loader)), correct / max(1, total)
 
-So far we've served GourmetGram using Cloud Run and GKE — both are general-purpose hosting platforms. **Vertex AI Endpoints** is purpose-built for ML model serving: it integrates directly with Model Registry, supports **traffic splitting** between model versions (for canary deployments and A/B testing), and provides ML-specific monitoring.
+for epoch in range(3):
+    tr_loss, tr_acc = run_epoch(train_loader, train=True)
+    va_loss, va_acc = run_epoch(val_loader, train=False)
+    print(f"epoch={epoch+1} train_loss={tr_loss:.4f} train_acc={tr_acc:.4f} val_loss={va_loss:.4f} val_acc={va_acc:.4f}")
+```
 
-In this stage, we'll deploy our trained models from Model Registry to a Vertex AI Endpoint, then split traffic between two model versions. The container image was already updated in Stage 6 (before model registration), so each model in the Registry already has the correct Vertex AI-compatible container.
+### Run a managed training job
 
-### Create a Vertex AI Endpoint
+Once you have finalized your training code, though, you wouldn't want to run it interactively in a notebook every time you train a model. Agent Platform (formerly Vertex AI) Custom Jobs is a managed training compute service. It is useful once you want repeatable runs from a fixed package, using versioned data and centralized run monitoring.
 
-Create an endpoint that will serve predictions:
+The `vertex` branch of `gourmetgram-train`: https://github.com/teaching-on-testbeds/gourmetgram-train/tree/vertex
+
+is the managed training version of the codebase. It includes top-level `train.py`, `Dockerfile`, and `requirements.txt`. It is customized to GCP as follows:
+
+* It includes a `custom_job.yaml` template for Agent Platform Custom Jobs; in the next step we render `custom_job.resolved.yaml` from it so image URI, dataset URI, output URI, region, and experiment/run names are filled in from your current environment variables.
+* In train.py, it uses GCS-backed PyTorch `Dataset` and streams examples directly from Cloud Storage for training/validation/evaluation.
+* That `train.py` also logs to Agent Platform Experiments directly in code (for example with `aiplatform.log_metrics`), so runs are tracked in the experiments UI.
+
 
 ```
 # run in Cloud Shell
-gcloud ai endpoints create --display-name=gourmetgram-endpoint --region=$REGION
-```
-
-Retrieve the endpoint ID:
-
-```
-# run in Cloud Shell
-ENDPOINT_ID=$(gcloud ai endpoints list --region=$REGION --format="value(name)" --filter="displayName=gourmetgram-endpoint" --limit=1)
-echo $ENDPOINT_ID
-```
-
-### Deploy a model to the endpoint
-
-First, get the model IDs for the two models we trained in Stage 6:
-
-```
-# run in Cloud Shell
-gcloud ai models list --region=$REGION --format="table(name, displayName)"
-```
-
-You should see a production model (e.g. `gourmetgram-model-v3`) and a retrain/experimental model (e.g. `gourmetgram-v3-retrain-20260331-142300`). Note their full resource names.
-
-Save the model IDs — the production model and the retrain model:
-
-```
-# run in Cloud Shell
-MODEL_1=$(gcloud ai models list --region=$REGION --format="value(name)" --filter="displayName~gourmetgram-model-v" --sort-by=~createTime --limit=1)
-MODEL_2=$(gcloud ai models list --region=$REGION --format="value(name)" --filter="displayName~retrain" --sort-by=~createTime --limit=1)
-echo "Production model: $MODEL_1"
-echo "Retrain model:    $MODEL_2"
-```
-
-Deploy the production model to the endpoint with 100% of traffic:
-
-```
-# run in Cloud Shell
-gcloud ai endpoints deploy-model $ENDPOINT_ID \
-  --model=$MODEL_1 \
-  --display-name=production \
-  --traffic-split=0=100 \
-  --region=$REGION \
-  --machine-type=n1-standard-2
-```
-
-This takes a few minutes. You can monitor the deployment in the console: [Vertex AI Endpoints](https://console.cloud.google.com/vertex-ai/endpoints)
-
-If you click on the endpoint and go to the **Deployed models** tab, you'll see the model being deployed in real time. Once it finishes, the status will change to "Deployed" and it will show 100% traffic.
-Also if you click on the deployment it will take you to the model registry entry for that model — you can see the model details and the GCS path to the model artifacts.
-
-### Test the endpoint
-
-Once the deployment is ready, send a test prediction:
-
-```
-# run in Cloud Shell
-ENDPOINT_RESOURCE="projects/$GCP_PROJECT_ID/locations/$REGION/endpoints/$ENDPOINT_ID"
-
-# Encode the test image as base64
-BASE64_IMAGE=$(base64 -w 0 ~/gourmetgram-gcp-lab/gourmetgram-vertex/instance/uploads/test_image.jpeg)
-
-# Write request payload to file (base64 image is too large for command line args)
-echo "{\"instances\": [{\"image\": \"$BASE64_IMAGE\"}]}" > /tmp/request.json
-
-# Send a prediction request
-curl -X POST \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-  -H "Content-Type: application/json" \
-  "https://$REGION-aiplatform.googleapis.com/v1/$ENDPOINT_RESOURCE:predict" \
-  -d @/tmp/request.json
-```
-
-You should see a prediction response with the food class and confidence score.
-
-### Traffic splitting
-
-Now let's deploy the retrain (experimental) model alongside the production model and split traffic — this is how you'd do a canary rollout in production:
-
-First, get the deployed model ID for the existing deployment:
-
-```
-# run in Cloud Shell
-DEPLOYED_MODEL_ID=$(gcloud ai endpoints describe $ENDPOINT_ID --region=$REGION --format="json" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['deployedModels'][0]['id'])")
-echo "Deployed model ID: $DEPLOYED_MODEL_ID"
-```
-
-Deploy the retrain model with a 70/30 traffic split:
-
-```
-# run in Cloud Shell
-gcloud ai endpoints deploy-model $ENDPOINT_ID \
-  --model=$MODEL_2 \
-  --display-name=retrain-canary \
-  --traffic-split=0=30,$DEPLOYED_MODEL_ID=70 \
-  --region=$REGION \
-  --machine-type=n1-standard-2
-```
-
-This deploys the retrain model as a canary and splits traffic: 70% goes to the production model, 30% to the experimental retrain model. You can see the traffic split in the console: [Vertex AI Endpoints](https://console.cloud.google.com/vertex-ai/endpoints)
-
-Send multiple prediction requests and observe that responses may come from different model versions:
-
-```
-# run in Cloud Shell
-for i in $(seq 1 20); do
-  curl -s -X POST \
-    -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-    -H "Content-Type: application/json" \
-    "https://$REGION-aiplatform.googleapis.com/v1/$ENDPOINT_RESOURCE:predict" \
-    -d @/tmp/request.json | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(f'Request {$i}: {r}')"
-done
-```
-
-You should see that some responses come from the production model and some from the retrain model, according to the 70/30 split. This split is also visible in the endpoint details in the console. The ```Inferences/second``` tab shws the traffic distribution between the two models in real time.
-
-> **Key takeaway:** Vertex AI Endpoints brings ML-specific serving capabilities that general-purpose platforms like Cloud Run don't provide out of the box. Traffic splitting lets you safely roll out new model versions — deploy with 10% traffic, monitor performance, then gradually increase. Combined with Experiment tracking from Stage 6, you have a complete picture: which data and hyperparameters produced which model, and how each model performs in production.
-
-## Stage 8: Cloud Monitoring + Logging
-
-Throughout this lab we've deployed services, generated traffic, trained models, and served predictions. But in production, you need to know what's happening — is the service healthy? How is it scaling? What predictions are being made? In this final stage, we set up observability across the pipeline using Cloud Logging and Cloud Monitoring.
-
-Make sure your environment variables are set:
-
-```
-# run in Cloud Shell
-export GCP_PROJECT_ID="gourmetgram-gcp-lab"
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 export REGION="us-central1"
-export SERVICE_NAME="gourmetgram-service"
+export REPO_NAME="gourmetgram-repo"
+export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
+export TRAIN_IMAGE="$REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/gourmetgram-train-job:latest"
+export DATA_VERSION="v1"
+export DATASET_URI="gs://$GCS_TRAINING_BUCKET/datasets/Food-11/$DATA_VERSION"
+export OUTPUT_URI="gs://$GCS_TRAINING_BUCKET/models/$DATA_VERSION-managed"
+export EXPERIMENT_NAME="gourmetgram-managed-training"
+
+# 1. Clone training repo and switch to managed-training branch
+git clone https://github.com/teaching-on-testbeds/gourmetgram-train.git
+cd ~/gourmetgram-train
+git checkout vertex
+
+# 2. Build and push managed training image (this takes a while)
+gcloud builds submit --tag $TRAIN_IMAGE .
 ```
 
-### Query Cloud Run logs
+To verify that everything is in place, open [Cloud Build](https://console.cloud.google.com/cloud-build/builds) to confirm the image build succeeds, then open [Artifact Registry](https://console.cloud.google.com/artifacts) and confirm the `gourmetgram-train-job` image is present.
 
-Cloud Logging automatically captures logs from Cloud Run. Let's query the prediction logs from our service — every time the app handled a `/api/predict` request, it logged the result.
-
-```
-# run in Cloud Shell
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME AND textPayload:api/predict" \
-  --limit=20 \
-  --format="table(timestamp, textPayload)" \
-  --freshness=7d
-```
-
-You can also view these interactively in the console: [Logs Explorer](https://console.cloud.google.com/logs/query). Make sure that the time range is set for a value which is more than "Last 1 hour". In the Logs Explorer, try this query:
-
-```
-resource.type="cloud_run_revision"
-resource.labels.service_name="gourmetgram-service"
-textPayload:"api/predict"
-```
-
-You should see log entries showing the food class predictions your service made during the traffic generation steps.
-
-### Create a log-based metric
-
-Log-based metrics let you turn log entries into time-series data that can be charted and alerted on. We'll create a metric that counts how many prediction requests Cloud Run has handled:
+Submit one managed training run in Agent Platform:
 
 ```
 # run in Cloud Shell
-gcloud logging metrics create prediction_request_count \
-  --description="Count of prediction requests handled by GourmetGram Cloud Run service" \
-  --log-filter='resource.type="cloud_run_revision" AND resource.labels.service_name="gourmetgram-service" AND textPayload:"api/predict"'
+# 1. Render custom job config from template in gourmetgram-train/vertex
+sed "s|TRAIN_IMAGE_PLACEHOLDER|$TRAIN_IMAGE|g; s|DATASET_URI_PLACEHOLDER|$DATASET_URI|g; s|OUTPUT_URI_PLACEHOLDER|$OUTPUT_URI|g; s|value: gourmetgram-managed-training|value: $EXPERIMENT_NAME|g; s|value: us-central1|value: $REGION|g" custom_job.yaml > custom_job.resolved.yaml
+
+# 2. Submit one managed training job
+gcloud ai custom-jobs create \
+  --project=$GCP_PROJECT_ID \
+  --region=$REGION \
+  --display-name="gourmetgram-train-$DATA_VERSION" \
+  --config=custom_job.resolved.yaml
 ```
 
+To see your managed run in the UI, open [Agent Platform Training](https://console.cloud.google.com/agent-platform/training/custom-jobs), and click on "Custom Jobs".
 
-You can see the metric in the console: [Log-based Metrics](https://console.cloud.google.com/logs/metrics)
+Once it starts running, for experiment-level tracking, open [Agent Platform Experiments](https://console.cloud.google.com/agent-platform/experiments), open `gourmetgram-managed-training`, and confirm the run `gourmetgram-...` appears. You can see the job parameters and logged metrics.
 
-> **Note:** Log-based metrics only count new log entries that arrive after the metric is created. To see data, you'll need to generate some traffic after this step (we'll do that shortly).
+When the job succeeds, it should save the model artifact to Cloud Storage! To verify that everything is in place, open [Cloud Storage Browser](https://console.cloud.google.com/storage/browser) and confirm `food11.pth` exists under `gs://$GCS_TRAINING_BUCKET/models/$DATA_VERSION-managed/`.
 
-### Query Vertex AI Endpoint logs
+In this section, we submitted a single managed training job. That is the simplest production starting point. A managed training pipeline is the next step when you want orchestration across multiple stages (for example: data checks, training, evaluation, and registration) as one tracked workflow. This is available using the "Pipelines" feature of Agent Platform, but we won't get to that here.
 
-If you deployed models to a Vertex AI Endpoint in Stage 7, those predictions are also logged:
+## Understand billing
 
-```
-# run in Cloud Shell
-gcloud logging read "resource.type=aiplatform.googleapis.com/Endpoint" \
-  --limit=10 \
-  --format="table(timestamp, jsonPayload.type_url)" \
-  --freshness=7d
-```
+Before cleanup, open [Billing](https://console.cloud.google.com/billing) and click on "Reports" and "Cost Table". Filter to your project and lab time window. This gives you both the high-level spend trend and the per-service line items.
 
-Or in the Logs Explorer:
+Note that there is a time lag between usage and billing, so you may have to revisit the next day to see your usage.
 
-```
-resource.type="aiplatform.googleapis.com/Endpoint"
-```
+Each service follows a different billing rule. 
 
-### Create a monitoring dashboard
+* Compute Engine VM billing is wall-clock based while the VM is running, so it keeps charging even when idle until you stop or delete it. 
+* GKE charges for cluster/node resources over time; HPA changes pod count but does not make the cluster free when idle. 
+* Cloud Run is request-driven, so you pay for request processing resources and configured baseline features rather than paying for a permanently running VM. 
+* Cloud Run Jobs and Batch are execution-based: charges accrue while the job/task runs and stop when it finishes. 
+* Agent Platform Workbench provisions compute resources, so they continue accruing cost while provisioned even if you are not actively using the notebook. 
+* Agent Platform Custom Jobs charge for the training resources during each run. 
+* Cloud Storage charges for stored bytes and operations, so bucket costs remain after compute is deleted if data is left behind. 
+* Artifact Registry charges for stored images. 
+* Logging/Monitoring can accrue small charges depending on ingestion/retention/advanced usage.
 
-Now let's create a Cloud Monitoring dashboard that shows key metrics across our services. We'll create a dashboard configuration and deploy it:
-
-```
-# run in Cloud Shell
-cat > /tmp/dashboard.json << 'ENDJSON'
-{
-  "displayName": "GourmetGram Overview",
-  "mosaicLayout": {
-    "columns": 12,
-    "tiles": [
-      {
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Cloud Run — Request Count",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_count\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_RATE"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      },
-      {
-        "xPos": 6,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Cloud Run — Request Latency (p50 / p95 / p99)",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_PERCENTILE_99"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      },
-      {
-        "yPos": 4,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Cloud Run — Container Instance Count",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/container/instance_count\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_MEAN"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      },
-      {
-        "xPos": 6,
-        "yPos": 4,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Cloud Run — CPU and Memory Utilization",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/container/cpu/utilizations\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_PERCENTILE_99"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      },
-      {
-        "yPos": 8,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "GKE — Pod Count",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "resource.type=\"k8s_container\" AND metric.type=\"kubernetes.io/container/restart_count\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_RATE"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      },
-      {
-        "xPos": 6,
-        "yPos": 8,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Prediction Request Count (log-based)",
-          "xyChart": {
-            "dataSets": [{
-              "timeSeriesQuery": {
-                "timeSeriesFilter": {
-                  "filter": "metric.type=\"logging.googleapis.com/user/prediction_request_count\"",
-                  "aggregation": {
-                    "alignmentPeriod": "60s",
-                    "perSeriesAligner": "ALIGN_RATE"
-                  }
-                }
-              }
-            }]
-          }
-        }
-      }
-    ]
-  }
-}
-ENDJSON
-
-gcloud monitoring dashboards create --config-from-file=/tmp/dashboard.json
-```
-
-View your dashboard in the console: [Monitoring Dashboards](https://console.cloud.google.com/monitoring/dashboards)
-
-Click on **GourmetGram Overview** to see the charts. If you completed the traffic generation steps earlier, you should see request counts, latency distributions, and instance scaling patterns.
-
-### Generate traffic to populate the dashboard
-
-If the charts look empty (the log-based metric only captures new data), send a quick burst of traffic to Cloud Run:
-
-```
-# run in Cloud Shell
-export CLOUD_RUN_URL=$(gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)')
-
-for i in $(seq 1 20); do
-  curl -s -o /dev/null -w "Request $i: %{http_code} (%{time_total}s)\n" $CLOUD_RUN_URL/test
-done
-```
-
-Wait a minute or two, then refresh the dashboard. It will be easier for this step if you set the time range to be "Last 15 minutes" and also enable auto-refresh. You should now see the request spike in the charts.
-
-### Set up an alerting policy
-
-Let's create an alert that fires when Cloud Run request latency exceeds 5 seconds — this would indicate the service is struggling:
-
-```
-# run in Cloud Shell
-gcloud alpha monitoring policies create \
-  --display-name="GourmetGram High Latency Alert" \
-  --condition-display-name="Cloud Run p99 latency > 5s" \
-  --condition-filter='resource.type="cloud_run_revision" AND metric.type="run.googleapis.com/request_latencies"' \
-  --condition-threshold-value=5000 \
-  --condition-threshold-comparison=COMPARISON_GT \
-  --condition-threshold-duration=60s \
-  --condition-threshold-aggregation='{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_PERCENTILE_99"}' \
-  --notification-channels=[] \
-  --combiner=OR
-```
-
-> **Note:** We're creating this alert without a notification channel (no email/SMS), so it will only show in the console. In production, you'd connect it to an email, Slack, or PagerDuty notification channel.
-
-View your alerting policy: [Monitoring Alerting](https://console.cloud.google.com/monitoring/alerting)
-
-> **Key takeaway:** Cloud Monitoring and Logging give you visibility into your entire ML pipeline. Log-based metrics let you bridge application-level events (like predictions) into the monitoring system. Custom dashboards give you a single pane of glass across Cloud Run, GKE, and Vertex AI. Alerting policies ensure you're notified when something goes wrong — a critical requirement for production ML systems.
-
-## Cost comparison
-
-Throughout this lab, we've had several compute options running simultaneously. Let's compare their costs.
-
-Go to **Billing** in the Google Cloud Console. Navigate to your billing account, then click **Reports** in the left sidebar. Filter by your project (`gourmetgram-gcp-lab`) and set the time range to cover the duration of this lab.
-
-You can also see resource-level costs in the [Cost Table](https://console.cloud.google.com/billing) view — click **Cost Table** in the left sidebar to see line items broken down by service.
-
-Here's what to look for:
-
-| Deployment | Behavior during this lab | Cost pattern |
-|---|---|---|
-| **Compute Engine VM** | Ran idle the entire time (deployed in synthetic traffic section) | Charged continuously — even though it did nothing |
-| **GKE static deployment** | Fixed pods running, regardless of traffic | Cluster + node costs the entire time |
-| **GKE with HPA** | Pods scaled up during load, back down after | Same cluster cost, but fewer pods during idle |
-| **Cloud Run** | Scaled to zero between traffic bursts | Only charged during the seconds when requests were being processed |
-| **Vertex AI Endpoint** | Dedicated machine running for model serving | Charged from deploy time — similar to VM for single-model serving |
-
-The key insight: **serverless (Cloud Run) is dramatically cheaper for intermittent workloads** because you only pay for what you use. Always-on resources (VM, static K8s) accumulate cost whether they're serving traffic or sitting idle. For ML inference that has variable traffic, this cost difference compounds quickly.
-
-> **Note:** Your actual costs will depend on how long each resource was running and how much traffic you generated. The pattern — not the exact numbers — is what matters.
+In addition, note that it costs money to move data or network traffic to/from compute resource in many services.
 
 ## Cleanup
 
-To avoid ongoing charges, delete all the resources created during this lab. A cleanup script is included in the repo:
+> Tip: If you're done with the project entirely, you can delete the entire GCP project, which immediately stops all billing: IAM & Admin → Settings → Shut down project.
+
+### Verify everything was deleted in the Console
+
+As you have noted, on a commercial cloud, usage costs actual money - so it's very important to clean up after yourself!
+
+Do a full UI sweep and delete all of the resources used in the lab:
+
+1. [Artifact Registry repositories](https://console.cloud.google.com/artifacts)
+2. [Compute Engine VM instances](https://console.cloud.google.com/compute/instances)
+3. [VPC firewall rules](https://console.cloud.google.com/networking/firewalls)
+4. [Kubernetes Engine clusters](https://console.cloud.google.com/kubernetes/list/overview)
+5. [Cloud Run services](https://console.cloud.google.com/run)
+6. [Cloud Storage Browser](https://console.cloud.google.com/storage/browser)
+7. [Eventarc triggers](https://console.cloud.google.com/eventarc/triggers)
+8. [Batch Jobs](https://console.cloud.google.com/batch/jobs)
+9. [Workflows](https://console.cloud.google.com/workflows)
+10. [Cloud Scheduler jobs](https://console.cloud.google.com/cloudscheduler)
+11. [Agent Platform Workbench instances](https://console.cloud.google.com/agent-platform/workbench/instances)
+12. [Agent Platform Custom Jobs](https://console.cloud.google.com/agent-platform/training/custom-jobs)
+13. [Agent Platform Experiments](https://console.cloud.google.com/agent-platform/experiments)
+14. [Monitoring Dashboards](https://console.cloud.google.com/monitoring/dashboards)
+15. [Monitoring Alerting Policies](https://console.cloud.google.com/monitoring/alerting)
+16. [Log-based Metrics](https://console.cloud.google.com/logs/metrics)
+17. [Cloud Build history](https://console.cloud.google.com/cloud-build/builds)
+
+### Disable APIs used in this lab
+
+After you've deleted all lab resources, you can disable the APIs that were enabled earlier:
+
 
 ```
 # run in Cloud Shell
-cd ~/gourmetgram-gcp-lab
-bash cleanup.sh
+gcloud services disable \
+  compute.googleapis.com \
+  container.googleapis.com \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  storage.googleapis.com \
+  notebooks.googleapis.com \
+  aiplatform.googleapis.com \
+  monitoring.googleapis.com \
+  logging.googleapis.com \
+  eventarc.googleapis.com \
+  cloudscheduler.googleapis.com \
+  workflows.googleapis.com \
+  batch.googleapis.com 
 ```
 
-> **Important:** Before running the cleanup script, edit `cleanup.sh` and change the `NET_ID` variable to your own Net ID.
-
-The script deletes resources in dependency order:
-
-1. Cloud Scheduler job
-2. Cloud Run Job (batch data)
-3. Eventarc trigger
-4. Cloud Run service
-5. Compute Engine VM + firewall rule
-6. GKE cluster
-7. GCS buckets (staging, training, eventarc)
-8. Vertex AI Endpoint (undeploys all models first)
-9. Vertex AI Models
-10. Vertex AI TensorBoard instances
-11. Vertex AI Experiments
-12. Artifact Registry images + repository
-13. Monitoring dashboard and alerting policy
-
-After the script completes, verify in the console that all resources are deleted: [Cloud Console Dashboard](https://console.cloud.google.com/home/dashboard)
-
-To also delete the monitoring resources created in Stage 8:
-
-```
-# run in Cloud Shell
-# Delete the dashboard
-DASHBOARD_ID=$(gcloud monitoring dashboards list --format="value(name)" --filter="displayName='GourmetGram Overview'" | head -1)
-if [ -n "$DASHBOARD_ID" ]; then
-  gcloud monitoring dashboards delete "$DASHBOARD_ID"
-fi
-
-# Delete the alerting policy
-POLICY_ID=$(gcloud alpha monitoring policies list --format="value(name)" --filter="displayName='GourmetGram High Latency Alert'" | head -1)
-if [ -n "$POLICY_ID" ]; then
-  gcloud alpha monitoring policies delete "$POLICY_ID"
-fi
-
-# Delete the log-based metric
-gcloud logging metrics delete prediction_request_count --quiet
-```
-
-> **Tip:** If you're done with the project entirely, you can delete the entire GCP project, which immediately stops all billing: **IAM & Admin → Settings → Shut down project**.
-
-## Troubleshooting
-
-### Authentication errors
-
-Cloud Shell sessions expire periodically. If you encounter errors like "no active account", "permission denied", or "unauthenticated", re-authenticate:
-
-```
-# Re-authenticate gcloud CLI (fixes most gcloud command errors)
-gcloud auth login
-```
-
-Some tools (the Python traffic generator, Vertex AI pipeline submission) use **application default credentials** instead of gcloud's own credentials. If you see errors from Python scripts about credentials or authentication:
-
-```
-# Set application default credentials (fixes Python SDK errors)
-gcloud auth application-default login
-```
-
-Both commands will give you a link to open in your browser. Follow it to authenticate, then return to Cloud Shell.
-
-### Cloud Shell session restarts
-
-If your Cloud Shell session restarts, all environment variables are lost. Re-export them by running the variable block at the top of whichever section you're working on. You may also need to re-run `gcloud container clusters get-credentials` for GKE access and re-authenticate as described above.
-
-### Docker push "connection refused"
-
-If `docker push` to Artifact Registry fails with a "connection refused" error in Cloud Shell, use Cloud Build as a workaround instead:
-
-```
-gcloud builds submit --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME .
-```
-
-### gcloud builds submit log crash
-
-If `gcloud builds submit` crashes with a Python error while tailing logs (a known gcloud SDK bug), the build itself usually succeeds. Use `--async` to skip log tailing:
-
-```
-gcloud builds submit --async --tag $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME .
-```
-
-Check the build status in the console: [Cloud Build](https://console.cloud.google.com/cloud-build/builds)
+as an extra step to protect yourself.
