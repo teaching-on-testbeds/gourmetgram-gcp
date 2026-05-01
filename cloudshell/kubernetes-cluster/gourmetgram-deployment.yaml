@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gourmetgram-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gourmetgram
+  template:
+    metadata:
+      labels:
+        app: gourmetgram
+    spec:
+      containers:
+      - name: gourmetgram
+        image: ${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /test
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /test
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gourmetgram-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: gourmetgram
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

@@ -1,0 +1,24 @@
+{
+  "taskGroups": [{
+    "taskSpec": {
+      "runnables": [{
+        "container": {
+          "imageUri": "${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPO_NAME}/prepare-training-dataset"
+        }
+      }],
+      "environment": {
+        "variables": {
+          "GCS_TRAINING_BUCKET": "${GCS_TRAINING_BUCKET}",
+          "GCS_LABELED_BUCKET": "${GCS_LABELED_BUCKET}"
+        }
+      },
+      "computeResource": {"cpuMilli": 1000, "memoryMib": 2048},
+      "maxRunDuration": "1800s",
+      "maxRetryCount": 1
+    },
+    "taskCount": 1,
+    "parallelism": 1
+  }],
+  "allocationPolicy": {"serviceAccount": {"email": "${COMPUTE_SA}"}},
+  "logsPolicy": {"destination": "CLOUD_LOGGING"}
+}

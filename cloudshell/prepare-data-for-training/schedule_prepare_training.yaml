@@ -1,0 +1,41 @@
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: "us-central1"
+          - ts: ${text.replace_all(string(sys.now()), ":", "-")}
+          - ts2: ${text.replace_all(ts, ".", "-")}
+          - jobId: ${"prepare-training-dataset-" + text.replace_all(ts2, "T", "-")}
+    - submitBatch:
+        call: http.post
+        args:
+          url: ${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + region + "/jobs?job_id=" + jobId}
+          auth:
+            type: OAuth2
+          body:
+            taskGroups:
+              - taskSpec:
+                  runnables:
+                    - container:
+                        imageUri: ${args.image_uri}
+                  environment:
+                    variables:
+                      GCS_TRAINING_BUCKET: ${args.gcs_training_bucket}
+                      GCS_LABELED_BUCKET: ${args.gcs_labeled_bucket}
+                  computeResource:
+                    cpuMilli: 1000
+                    memoryMib: 2048
+                  maxRunDuration: "1800s"
+                  maxRetryCount: 1
+                taskCount: 1
+                parallelism: 1
+            allocationPolicy:
+              serviceAccount:
+                email: ${args.compute_sa}
+            logsPolicy:
+              destination: CLOUD_LOGGING
+    - done:
+        return:
+          submitted_job_id: ${jobId}

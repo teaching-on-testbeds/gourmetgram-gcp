@@ -1,0 +1,36 @@
+{
+  "taskGroups": [
+    {
+      "taskSpec": {
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPO_NAME}/food11-batch-ingest"
+            }
+          }
+        ],
+        "computeResource": {
+          "cpuMilli": 1000,
+          "memoryMib": 2048
+        },
+        "environment": {
+          "variables": {
+            "GCS_TRAINING_BUCKET": "${GCS_TRAINING_BUCKET}"
+          }
+        },
+        "maxRetryCount": 1,
+        "maxRunDuration": "1800s"
+      },
+      "taskCount": 1,
+      "parallelism": 1
+    }
+  ],
+  "allocationPolicy": {
+    "serviceAccount": {
+      "email": "${COMPUTE_SA}"
+    }
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}
