@@ -619,7 +619,7 @@ export REGION="us-central1"
 export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 export REPO_NAME="gourmetgram-repo"
 export IMAGE_NAME="gourmetgram"
-export IMAGE_TAG="cloudstorage"
+export IMAGE_TAG="eventarc"
 export GCS_RAW_BUCKET="gourmetgram-raw-bucket-${USER}"
 export GCS_LABELED_BUCKET="gourmetgram-labeled-bucket-${USER}"
 
@@ -691,7 +691,7 @@ Now, test the end-to-end flow. We will use Cloud Shell to upload a test image to
 
 ```
 # run in Cloud Shell
-gcloud storage cp ~/gourmetgram/instance/uploads/test_image.jpeg gs://$GCS_RAW_BUCKET/uploads/test_image.jpeg
+gcloud storage cp instance/uploads/test_image.jpeg gs://$GCS_RAW_BUCKET/uploads/test_image.jpeg
 ```
 
 Then verify in the Cloud Storage UI that a new file appears in both the "raw" bucket, and in the "labeled" bucket under `class_XX/`: [Cloud Storage](https://console.cloud.google.com/storage/browser). Take a screenshot for both.
@@ -814,7 +814,7 @@ cd ~/gourmetgram-gcp/cloudshell/prepare-data-for-training
 # 2. Deploy workflow
 gcloud workflows deploy schedule-prepare-training \
   --location=$REGION \
-  --source=~/gourmetgram-gcp/cloudshell/prepare-data-for-training/schedule_prepare_training.yaml
+  --source=schedule_prepare_training.yaml
 
 # 3. Create Scheduler job (every hour for lab demo)
 SCHEDULER_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
