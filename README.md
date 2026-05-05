@@ -1089,7 +1089,13 @@ In this section, we submitted a single managed training job. That is the simples
 
 ## Understand billing
 
-Before cleanup, open [Billing](https://console.cloud.google.com/billing) and click on "Reports" and "Cost Table". Filter to your project and lab time window. This gives you both the high-level spend trend and the per-service line items.
+Before cleanup, open [Billing](https://console.cloud.google.com/billing) and click on "Reports". Filter to your project and lab time window. 
+
+* Change "Group by" to SKU
+* At the bottom, change the displayed rows to show all (or as many as possible)
+* Sort the table by "Service"
+
+This gives you per-service per-SKU line items.
 
 Note that there is a time lag between usage and billing, so you may have to revisit the next day to see your usage.
 
