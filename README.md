@@ -105,6 +105,7 @@ Inside the Cloud Shell, let us set the `GCP_PROJECT_ID` environment variable, wh
 
 ```
 # run in Cloud Shell
+export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 ```
 
 > Note: The images in this tutorial may show a different project name, `excellent-grove-286202`, because I took screenshots in a project with that randomly generated name.
@@ -152,6 +153,7 @@ export REGION="us-central1"
 export GCP_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
 export IMAGE_NAME="gourmetgram"
 
+cd ~/
 git clone https://github.com/teaching-on-testbeds/gourmetgram
 cd gourmetgram
 
