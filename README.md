@@ -500,7 +500,6 @@ echo $GCS_LABELED_BUCKET
 # 2. Create the labeled bucket
 gcloud storage buckets create gs://$GCS_LABELED_BUCKET \
     --location=us-central1 \
-
     --uniform-bucket-level-access
 
 export GCS_TRAINING_BUCKET="gourmetgram-training-bucket-${USER}"
@@ -563,7 +562,6 @@ gcloud run deploy $SERVICE_NAME \
   --image $REGION-docker.pkg.dev/$GCP_PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG \
   --platform managed \
   --region $REGION \
-
   --allow-unauthenticated \
   --port 8000 \
   --memory=2Gi \
